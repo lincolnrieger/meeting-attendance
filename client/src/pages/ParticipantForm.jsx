@@ -1,16 +1,17 @@
 /** Add / edit participant. Route: /participants/new and /participants/:id/edit */
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ImagePlus, Trash2 } from 'lucide-react';
+import { ImagePlus, Plus, Settings2, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { todayISO } from '../lib/format';
 import { useAppSettings } from '../lib/settings';
 import { Avatar, ErrorNotice, Field, Loading, PageHeader, Panel, SampleTag } from '../components/ui';
+import { AddFieldForm, CustomFieldInput } from '../components/CustomFields';
 import { useToast } from '../components/Feedback';
 
 const EMPTY = {
   first_name: '', last_name: '', date_of_birth: '', email: '', phone: '',
-  position: '', date_joined: todayISO(), status: 'active', notes: '', photo: null,
+  position: '', date_joined: todayISO(), status: 'active', notes: '', photo: null, custom: {},
 };
 
 /** Client-side checks that mirror the server rules for instant feedback. */
@@ -50,7 +51,8 @@ export default function ParticipantForm() {
   const editing = Boolean(id);
   const navigate = useNavigate();
   const toast = useToast();
-  const { settings, t } = useAppSettings();
+  const { settings, t, fields } = useAppSettings();
+  const [addingField, setAddingField] = useState(false);
   const fileRef = useRef(null);
   const [values, setValues] = useState(editing ? null : EMPTY);
   const [isSample, setIsSample] = useState(false);
@@ -62,13 +64,21 @@ export default function ParticipantForm() {
     if (!editing) return;
     api.get(`/participants/${id}`).then(({ participant: p }) => {
       setIsSample(Boolean(p.is_sample));
-      setValues(Object.fromEntries(Object.keys(EMPTY).map((k) => [k, p[k] ?? (k === 'photo' ? null : '')])));
+      setValues({
+        ...Object.fromEntries(Object.keys(EMPTY).map((k) => [k, p[k] ?? (k === 'photo' ? null : '')])),
+        custom: p.custom || {},
+      });
     }).catch(setFormError);
   }, [editing, id]);
 
   const set = (k) => (e) => {
     setValues((v) => ({ ...v, [k]: e.target.value }));
     if (errors[k]) setErrors((er) => ({ ...er, [k]: undefined }));
+  };
+
+  const setCustom = (id) => (v) => {
+    setValues((vals) => ({ ...vals, custom: { ...vals.custom, [id]: v } }));
+    if (errors[`custom_${id}`]) setErrors((er) => ({ ...er, [`custom_${id}`]: undefined }));
   };
 
   async function choosePhoto(e) {
@@ -161,6 +171,30 @@ export default function ParticipantForm() {
             <Field label="Notes" htmlFor="notes" error={errors.notes} className="span-2">
               <textarea id="notes" className="input" rows={4} value={values.notes || ''} onChange={set('notes')} />
             </Field>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Additional details"
+          actions={<Link to="/settings" className="btn btn-sm btn-ghost"><Settings2 size={14} /> Manage fields</Link>}
+        >
+          {fields.length > 0 ? (
+            <div className="form-grid">
+              {fields.map((f) => (
+                <Field key={f.id} label={f.label} htmlFor={`custom_${f.id}`} error={errors[`custom_${f.id}`]} className={f.type === 'long_text' ? 'span-2' : ''}>
+                  <CustomFieldInput field={f} value={values.custom[f.id]} onChange={setCustom(f.id)} invalid={errors[`custom_${f.id}`]} />
+                </Field>
+              ))}
+            </div>
+          ) : (
+            !addingField && <p className="muted">No custom fields yet. Add one for any extra detail you want to record for every {t.participant}.</p>
+          )}
+          <div className={fields.length ? 'mt' : ''}>
+            {addingField ? (
+              <AddFieldForm onCreated={() => setAddingField(false)} onCancel={() => setAddingField(false)} />
+            ) : (
+              <button type="button" className="btn btn-sm" onClick={() => setAddingField(true)}><Plus size={15} /> Add a field</button>
+            )}
           </div>
         </Panel>
 

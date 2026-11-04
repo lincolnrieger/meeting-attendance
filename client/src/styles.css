@@ -358,7 +358,7 @@ th.sortable button:hover { color: var(--text); }
 
 /* ---------- Profile ---------- */
 .profile-grid { display: grid; grid-template-columns: 340px 1fr; gap: 16px; margin-bottom: 16px; align-items: start; }
-.details { display: grid; grid-template-columns: 110px 1fr; gap: 10px 12px; margin: 0; font-size: 13.5px; }
+.details { display: grid; grid-template-columns: 130px 1fr; gap: 10px 12px; margin: 0; font-size: 13.5px; }
 .details dt { color: var(--text-2); }
 .details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .trend-foot { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 18px; }
@@ -533,11 +533,34 @@ th.sortable button:hover { color: var(--text); }
 /* ---------- Settings: organisation ---------- */
 .org-settings { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
 .org-settings > .panel { margin-bottom: 0; }
-.template-row { display: flex; align-items: flex-end; gap: 10px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
-.template-row .field { max-width: 360px; }
 .field-label { font-size: 13px; font-weight: 500; }
 .suggestion-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 20px; }
 .suggestion-list { font-size: 13.5px; line-height: 1.6; }
 .sticky-actions { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; align-items: center; z-index: 5; }
 @media (max-width: 1080px) { .suggestion-grid { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .template-row { flex-direction: column; align-items: stretch; } .template-row .field { max-width: none; } }
+
+
+/* ---------- Custom fields & import ---------- */
+.modal-lg { max-width: 880px; }
+.block { display: block; }
+.mr-auto { margin-right: auto; }
+.details-row { display: contents; }
+.details-heading { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); margin: 18px 0 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.add-field-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.add-field-row .grow { min-width: 200px; }
+.add-field-type { width: 140px; }
+.field-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); }
+.field-list li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; min-height: 46px; }
+.field-list li + li { border-top: 1px solid var(--border); }
+.field-list-name { flex: 1; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.field-list-type { font-size: 12px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.field-list-usage { width: 70px; text-align: right; }
+.import-source { display: flex; gap: 12px; flex-wrap: wrap; }
+.import-source .field { min-width: 200px; }
+.import-map { max-height: 46vh; overflow-y: auto; }
+.import-map td { vertical-align: top; }
+.import-map select.input, .import-map input.input { min-width: 0; width: 100%; }
+.import-heading { font-weight: 500; }
+.import-sample { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-new { display: grid; grid-template-columns: 1fr 120px; gap: 6px; margin-top: 6px; }
+@media (max-width: 640px) { .field-list-usage { display: none; } .add-field-type { width: 100%; } }

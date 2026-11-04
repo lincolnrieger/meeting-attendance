@@ -67,6 +67,18 @@ const MIGRATIONS = [
   [
     'CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
   ],
+  // 3 — custom fields: user-defined extra details for people. Definitions live in
+  // custom_fields; each person's values are a JSON object keyed by field id.
+  [
+    `CREATE TABLE IF NOT EXISTS custom_fields (
+      id          INTEGER PRIMARY KEY,
+      label       TEXT    NOT NULL,
+      type        TEXT    NOT NULL DEFAULT 'text' CHECK (type IN ('text','long_text','number','date','yes_no')),
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    )`,
+    "ALTER TABLE participants ADD COLUMN custom_values TEXT NOT NULL DEFAULT '{}'",
+  ],
 ];
 
 module.exports = { MIGRATIONS };
