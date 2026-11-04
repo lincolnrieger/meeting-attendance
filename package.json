@@ -1,0 +1,40 @@
+{
+  "name": "board-attendance-register",
+  "version": "1.0.0",
+  "description": "Board meeting attendance management system — participants, meetings, attendance register and reports.",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"node --watch server/index.js\" \"vite\"",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "test": "node --test tests/api.test.js",
+    "test:e2e": "node tests/e2e.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lincolnrieger/meeting-attendance.git"
+  },
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/lincolnrieger/meeting-attendance/issues"
+  },
+  "homepage": "https://github.com/lincolnrieger/meeting-attendance#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "concurrently": "^10.0.6",
+    "lucide-react": "^1.67.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5",
+    "vite": "^8.3.5"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}
