@@ -59,7 +59,7 @@ export function RateLineChart({ points, height = 220, emptyText = 'Not enough da
           </g>
         ))}
         {points.map((p, i) =>
-          i % step === 0 || i === points.length - 1 ? (
+          (i % step === 0 && points.length - 1 - i >= step / 2) || i === points.length - 1 ? (
             <text key={`l${i}`} x={x(i)} y={height - 8} textAnchor={points.length > 1 && i === points.length - 1 ? 'end' : i === 0 && points.length > 1 ? 'start' : 'middle'} className="tick">{p.label}</text>
           ) : null,
         )}

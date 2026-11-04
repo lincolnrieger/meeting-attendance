@@ -88,7 +88,7 @@ export default function MeetingDetail() {
               </button>
             )}
             {m.status === 'completed' && (
-              <button className="btn btn-ghost" onClick={() => setStatus('upcoming', { title: `Reopen ${t.event}`, message: 'Set the status back to Upcoming?', label: 'Reopen' })}>Reopen</button>
+              <button className="btn" onClick={() => setStatus('upcoming', { title: `Reopen ${t.event}`, message: 'Set the status back to Upcoming?', label: 'Reopen' })}><RotateCcw size={16} /> Reopen</button>
             )}
             <button className="icon-btn danger" title={`Delete ${t.event}`} aria-label={`Delete ${t.event}`} onClick={remove}><Trash2 size={17} /></button>
           </>
