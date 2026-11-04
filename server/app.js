@@ -1,53 +1,73 @@
 /**
- * Express application factory. Kept separate from index.js so tests can create
- * an app against a temporary database.
+ * HTTP API (Hono). The same app runs on Cloudflare Workers (worker/index.mjs)
+ * and on Node.js (server/index.js); each entry point supplies the database.
+ *
+ *   createApp({
+ *     getDb:     (c) => database adapter for this request (see database.js),
+ *     getConfig: (c) => ({ adminUsername, adminPassword, allowDefaultPassword, seedSampleData, timeZone }),
+ *   })
  */
-const path = require('node:path');
-const fs = require('node:fs');
-const express = require('express');
-const { authRouter, requireAuth, ensureAdminUser } = require('./auth');
+const { Hono } = require('hono');
+const { bodyLimit } = require('hono/body-limit');
+const { authRoutes, requireAuth, ensureAdminUser } = require('./auth');
+const { migrate } = require('./database');
 const { seedIfEmpty } = require('./seed');
+const { setTimeZone } = require('./validation');
 
-function createApp(db) {
-  ensureAdminUser(db);
-  seedIfEmpty(db);
-
-  const app = express();
-  app.disable('x-powered-by');
-  app.use(express.json({ limit: '5mb' }));
-
-  app.get('/api/health', (req, res) => res.json({ ok: true }));
-  app.use('/api/auth', authRouter(db));
-
-  const api = express.Router();
-  api.use(requireAuth(db));
-  api.use('/participants', require('./routes/participants')(db));
-  api.use('/meetings', require('./routes/meetings')(db));
-  api.use('/dashboard', require('./routes/dashboard')(db));
-  api.use('/reports', require('./routes/reports')(db));
-  api.use('/settings', require('./routes/settings')(db));
-  app.use('/api', api);
-
-  app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
-
-  // Serve the built frontend in production (after `npm run build`).
-  const dist = path.join(__dirname, '..', 'client', 'dist');
-  if (fs.existsSync(dist)) {
-    app.use(express.static(dist));
-    app.get(/^(?!\/api\/).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')));
+/** One-time setup per database (schema, admin account, sample data), memoised. */
+const ready = new WeakMap();
+function ensureReady(db, config) {
+  if (!ready.has(db)) {
+    const p = (async () => {
+      await migrate(db);
+      await ensureAdminUser(db, config);
+      if (config.seedSampleData !== false) await seedIfEmpty(db);
+    })();
+    p.catch(() => ready.delete(db)); // retry on the next request if setup failed
+    ready.set(db, p);
   }
+  return ready.get(db);
+}
 
-  // Central error handler: validation errors → 422 with field messages.
-  // eslint-disable-next-line no-unused-vars
-  app.use((err, req, res, next) => {
-    if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body.' });
-    if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Request is too large.' });
-    const status = err.status || 500;
-    if (status >= 500) console.error(err);
-    res.status(status).json({
-      error: status >= 500 ? 'Something went wrong on the server.' : err.message,
-      ...(err.errors ? { errors: err.errors } : {}),
-    });
+function createApp({ getDb, getConfig }) {
+  const app = new Hono();
+
+  app.get('/api/health', (c) => c.json({ ok: true }));
+
+  app.use('/api/*', bodyLimit({ maxSize: 5 * 1024 * 1024, onError: (c) => c.json({ error: 'Request is too large.' }, 413) }));
+  app.use('/api/*', async (c, next) => {
+    const config = getConfig(c);
+    setTimeZone(config.timeZone);
+    const db = getDb(c);
+    await ensureReady(db, config);
+    c.set('db', db);
+    c.set('config', config);
+    await next();
+  });
+
+  app.route('/api/auth', authRoutes());
+
+  // Everything else under /api requires a signed-in administrator.
+  const api = new Hono();
+  api.use('*', requireAuth);
+  api.route('/participants', require('./routes/participants')());
+  api.route('/meetings', require('./routes/meetings')());
+  api.route('/dashboard', require('./routes/dashboard')());
+  api.route('/reports', require('./routes/reports')());
+  api.route('/settings', require('./routes/settings')());
+  app.route('/api', api);
+
+  app.all('/api/*', (c) => c.json({ error: 'Not found.' }, 404));
+
+  // Central error handler: validation errors → 422 with per-field messages.
+  app.onError((err, c) => {
+    // Errors we raise deliberately carry a status; anything else is unexpected.
+    const expected = Number.isInteger(err.status);
+    if (!expected) console.error(err);
+    return c.json(
+      { error: expected ? err.message : 'Something went wrong on the server.', ...(err.errors ? { errors: err.errors } : {}) },
+      expected ? err.status : 500,
+    );
   });
 
   return app;

@@ -6,6 +6,12 @@
  * Requires Playwright with Chromium (`npm i -D playwright && npx playwright install chromium`).
  * Starts its own server on a spare port with a temporary database, so it never
  * touches your real data. Screenshots are written to tests/screenshots/.
+ *
+ * To test an already-running instance instead (e.g. `npm run cf:dev`, which runs
+ * the app in the Cloudflare Workers runtime with a local D1 database), use a
+ * fresh database and set E2E_BASE_URL and E2E_PASSWORD:
+ *   E2E_BASE_URL=http://localhost:8787 E2E_PASSWORD=... npm run test:e2e
+ * (the server-restart check is skipped in that mode).
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -15,20 +21,23 @@ const { spawn } = require('node:child_process');
 const { chromium } = require('playwright');
 
 const ROOT = path.join(__dirname, '..');
+const EXTERNAL = process.env.E2E_BASE_URL;
+const PASSWORD = process.env.E2E_PASSWORD || 'admin123';
 const PORT = 3900 + Math.floor(Math.random() * 90);
-const BASE = `http://localhost:${PORT}`;
+const BASE = EXTERNAL || `http://localhost:${PORT}`;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'board-e2e-'));
 const DB_PATH = path.join(tmp, 'e2e.db');
 const SHOTS = path.join(__dirname, 'screenshots');
 fs.mkdirSync(SHOTS, { recursive: true });
 
-if (!fs.existsSync(path.join(ROOT, 'client', 'dist', 'index.html'))) {
+if (!EXTERNAL && !fs.existsSync(path.join(ROOT, 'client', 'dist', 'index.html'))) {
   console.error('Build the frontend first: npm run build');
   process.exit(1);
 }
 
 let serverProc;
 function startServer() {
+  if (EXTERNAL) return Promise.resolve();
   return new Promise((resolve, reject) => {
     serverProc = spawn(process.execPath, ['server/index.js'], { cwd: ROOT, env: { ...process.env, PORT, DB_PATH } });
     serverProc.stdout.on('data', (d) => d.toString().includes('listening') && resolve());
@@ -37,6 +46,7 @@ function startServer() {
   });
 }
 function stopServer() {
+  if (EXTERNAL) return Promise.resolve();
   return new Promise((resolve) => { serverProc.on('exit', resolve); serverProc.kill('SIGTERM'); });
 }
 
@@ -60,7 +70,7 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
     await page.click('button:has-text("Sign in")');
     await page.getByText('Incorrect username or password').waitFor();
     ok('wrong password rejected');
-    await page.fill('#password', 'admin123');
+    await page.fill('#password', PASSWORD);
     await page.click('button:has-text("Sign in")');
     await page.waitForURL('**/participants');
     ok('signed in and returned to the requested page');
@@ -105,6 +115,7 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
     assert.equal(await page.locator('tbody tr').count(), 1);
     await page.fill('input[type=search]', '');
     await page.click('.segmented button:has-text("Inactive")');
+    await page.waitForFunction(() => [...document.querySelectorAll('tbody .badge')].every((b) => b.textContent === 'Inactive'));
     assert.ok((await page.locator('tbody tr').count()) >= 1);
     assert.equal(await page.locator('tbody tr', { hasText: 'Lindqvist' }).count(), 0);
     ok('search by name and status filter work');
@@ -243,7 +254,7 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
     await page.getByText('Sam Okafor was deleted.').waitFor();
     ok('delete asks for confirmation; cancel keeps the record, confirm removes it');
 
-    step('Persistence across an application restart');
+    step(EXTERNAL ? 'Persistence across a fresh page load' : 'Persistence across an application restart');
     await stopServer();
     await startServer();
     await page.goto(meetingUrl);
@@ -252,7 +263,7 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
     await page.goto(`${BASE}/`);
     await page.waitForSelector('.kpis');
     await page.screenshot({ path: path.join(SHOTS, 'dashboard.png'), fullPage: true });
-    ok('data and login session survive a server restart');
+    ok(EXTERNAL ? 'data still present' : 'data and login session survive a server restart');
 
     assert.deepEqual(pageErrors, [], 'no uncaught browser errors');
     console.log('\nAll end-to-end workflows passed.');

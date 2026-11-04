@@ -40,10 +40,25 @@ function isValidDate(s) {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
+/**
+ * Time zone used to decide what "today" is (and therefore which meetings are
+ * past or upcoming). Cloudflare Workers run in UTC, so this matters.
+ * Configured with the APP_TIMEZONE variable; defaults to Australia/Melbourne.
+ */
+let timeZone = 'Australia/Melbourne';
+function setTimeZone(tz) {
+  if (!tz) return;
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: tz });
+    timeZone = tz;
+  } catch {
+    console.warn(`[config] Unknown APP_TIMEZONE "${tz}", using ${timeZone}.`);
+  }
+}
+
+/** Today's date (YYYY-MM-DD) in the configured time zone. */
 function today() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
 function validateParticipant(input) {
@@ -149,4 +164,5 @@ module.exports = {
   assertValid,
   isValidDate,
   today,
+  setTimeZone,
 };

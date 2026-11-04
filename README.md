@@ -6,9 +6,9 @@ individual attendance histories, a fast attendance register, and date-filtered r
 with CSV export.
 
 - **Frontend:** React 19 + React Router, built with Vite. Plain CSS (no UI framework), [Lucide](https://lucide.dev) icons, IBM Plex Sans.
-- **Backend:** Node.js + Express 5 JSON API.
-- **Database:** SQLite (via `better-sqlite3`), stored in a single file at `data/board-attendance.db`.
-- **Auth:** single administrator login with server-side sessions (HttpOnly cookie) and bcrypt-hashed passwords.
+- **Backend:** a [Hono](https://hono.dev) JSON API that runs unchanged on **Cloudflare Workers** (production) and **Node.js** (local development, tests, or self-hosting).
+- **Database:** SQLite — **Cloudflare D1** in production; a local SQLite file (`data/board-attendance.db`, via `better-sqlite3`) when running on Node.
+- **Auth:** single administrator login with server-side sessions (HttpOnly cookie) and PBKDF2-hashed passwords.
 
 ---
 
@@ -35,7 +35,33 @@ Change the password straight away under **Settings → Change password**.
 `npm run dev` starts the API (port 3001, auto-restarts on server changes) and the Vite
 dev server (port 5173, hot reload) together.
 
-### Running for everyday use
+### Deploying to Cloudflare (Workers + D1)
+
+The repository is set up for [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/):
+every push to `main` builds the frontend and deploys the Worker defined in `wrangler.toml`
+(Worker name `meeting-attendance`).
+
+1. **Set the administrator password** — in the Cloudflare dashboard open
+   *Workers & Pages → meeting-attendance → Settings → Variables and Secrets*, click **Add**,
+   choose type **Secret**, name it `ADMIN_PASSWORD` and enter a strong password.
+   On Cloudflare there is *no* default password; the admin account (username `admin`, or
+   `ADMIN_USERNAME` if you set it) is created from this secret the first time the app runs.
+   Changing the secret later does not change an existing password — use **Settings** in the app.
+2. **Build settings** — the defaults work: deploy command `npx wrangler deploy` (Wrangler runs
+   `npm run build` itself, as configured in `wrangler.toml`). Leave the build command empty or set it to `npm run build`.
+3. **Push to `main`** (or click *Retry build*). On the first deploy Wrangler automatically
+   creates the D1 database `meeting-attendance-db` and binds it as `DB`. The app creates its
+   tables and loads the sample data on the first request.
+
+Settings in `wrangler.toml` `[vars]`: `APP_TIMEZONE` (default `Australia/Melbourne` — decides
+which meetings count as past or upcoming) and `SEED_SAMPLE_DATA` (set to `"false"` before the
+first deploy to start empty).
+
+You can also deploy from your own machine with `npx wrangler login` then `npm run deploy`,
+and run the Cloudflare version locally (Workers runtime + local D1) with `npm run cf:dev`
+— put `ADMIN_PASSWORD=...` in a `.dev.vars` file first.
+
+### Self-hosting on Node.js
 
 Build the frontend once, then run a single Node process that serves both the app and the API:
 
@@ -51,7 +77,7 @@ Then open <http://localhost:3001>.
 
 ### Configuration
 
-Optional environment variables, e.g. `PORT=8080 npm start`:
+Optional environment variables for Node, e.g. `PORT=8080 npm start`:
 
 | Variable           | Default                       | Purpose |
 | ------------------ | ----------------------------- | ------- |
@@ -60,8 +86,10 @@ Optional environment variables, e.g. `PORT=8080 npm start`:
 | `ADMIN_USERNAME`   | `admin`                       | Username for the administrator account created on first launch |
 | `ADMIN_PASSWORD`   | `admin123`                    | Initial password for that account |
 | `SEED_SAMPLE_DATA` | `true`                        | Set to `false` to start with an empty database |
+| `APP_TIMEZONE`     | `Australia/Melbourne`         | Time zone used to decide what "today" is |
 
-The admin account and sample data are only created when the database is new.
+The admin account and sample data are only created when the database is new. On Node,
+`admin` / `admin123` is used when `ADMIN_PASSWORD` is not set (never on Cloudflare).
 
 ---
 
@@ -133,12 +161,17 @@ tables (sortable). Every view exports to CSV.
 ## Project structure
 
 ```
+wrangler.toml         Cloudflare Workers configuration (Worker name, D1 binding, static assets)
+worker/
+  index.mjs           Cloudflare Workers entry point (D1 database, static assets)
 server/
-  index.js            Server entry point
-  app.js              Express app factory (routes, static files, error handling)
-  db.js               SQLite connection + schema migrations
-  auth.js             Login/logout, sessions, password change
-  validation.js       Input validation and shared constants
+  index.js            Node.js entry point (local SQLite file, serves the built frontend)
+  app.js              Hono app factory (routes, one-time setup, error handling)
+  database.js         Database adapter API, D1 adapter, migrations runner, SQL helpers
+  node-database.js    better-sqlite3 adapter for Node.js
+  schema.js           Schema migrations
+  auth.js             Login/logout, sessions, password hashing, password change
+  validation.js       Input validation, shared constants, time zone handling
   stats.js            Shared SQL for attendance statistics
   seed.js             Fictional sample data
   routes/
@@ -158,8 +191,12 @@ client/
 tests/
   api.test.js         API integration tests (node:test)
   e2e.js              Browser end-to-end test of the main workflows (Playwright)
-data/                 SQLite database (git-ignored)
+data/                 Local SQLite database when running on Node (git-ignored)
 ```
+
+The route code talks to the database only through the small async adapter in
+`server/database.js` (`all`, `first`, `value`, `run`, `batch`), which is why the same code runs
+on D1 and on a local SQLite file. Multi-step changes use `batch`, which is atomic on both.
 
 ### Data model
 
@@ -170,8 +207,9 @@ data/                 SQLite database (git-ignored)
 | `attendance`   | One row per invited participant per meeting. **Primary key `(meeting_id, participant_id)`** makes duplicate records impossible. `status` is `NULL` until recorded. Foreign keys cascade, so deleting a meeting or participant removes its attendance rows and records always point at a valid participant and meeting. |
 | `users`, `sessions` | Administrator account and login sessions. |
 
-Schema changes go in the `MIGRATIONS` array in `server/db.js`; the database's
-`user_version` tracks which have been applied.
+Schema changes go in the `MIGRATIONS` array in `server/schema.js` (append, never edit a
+deployed one). Applied versions are recorded in the `schema_migrations` table and new ones are
+applied automatically on startup / first request.
 
 ---
 
@@ -194,13 +232,16 @@ creating a meeting, adding invitees, recording attendance, reviewing a participa
 history, filtering and exporting reports, CSV import/export, duplicating and cancelling
 a meeting, delete confirmations, and checking that data persists after a server restart.
 It needs Playwright with Chromium (`npm i -D playwright && npx playwright install chromium`).
+To run the same test against the Cloudflare runtime, start `npm run cf:dev` with a fresh local
+database and run `E2E_BASE_URL=http://localhost:8787 E2E_PASSWORD=<your .dev.vars password> npm run test:e2e`.
 
 ---
 
-## Backups and deployment notes
+## Backups
 
-- All data lives in the SQLite file (`data/board-attendance.db` by default). Back it up by
-  copying the file while the app is stopped, or with `sqlite3 data/board-attendance.db ".backup backup.db"`.
-- If you host the app for others, put it behind HTTPS (e.g. a reverse proxy) and change
-  the administrator password. Session cookies are marked `Secure` automatically when the
-  request is served over HTTPS (configure your proxy / Express `trust proxy` accordingly).
+- **Cloudflare D1:** D1 keeps point-in-time recovery (Time Travel) for the last 30 days. To
+  take a copy: `npx wrangler d1 export meeting-attendance-db --remote --output backup.sql`.
+- **Node:** all data lives in the SQLite file (`data/board-attendance.db` by default). Copy it
+  while the app is stopped, or run `sqlite3 data/board-attendance.db ".backup backup.db"`.
+
+If you self-host on Node for others, put it behind HTTPS and set a strong `ADMIN_PASSWORD`.

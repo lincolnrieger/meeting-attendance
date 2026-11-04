@@ -1,0 +1,35 @@
+# Cloudflare Workers configuration.
+# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+name = "meeting-attendance"
+main = "worker/index.mjs"
+compatibility_date = "2026-10-01"
+
+# Wrangler builds the React frontend before every deploy (also in Workers Builds).
+[build]
+command = "npm run build"
+
+# The built frontend. /api/* requests go to the Worker; everything else is a
+# static file, with unknown paths falling back to index.html (client-side routes).
+[assets]
+directory = "./client/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+# The D1 (SQLite) database. No database_id is needed: Wrangler creates the
+# database on the first deploy and links it automatically. The schema and
+# sample data are created by the app on its first request.
+[[d1_databases]]
+binding = "DB"
+database_name = "meeting-attendance-db"
+
+[vars]
+# Decides what "today" is for past/upcoming meetings (Workers run in UTC).
+APP_TIMEZONE = "Australia/Melbourne"
+# Set to "false" before the first deploy to start with an empty database.
+SEED_SAMPLE_DATA = "true"
+# ADMIN_PASSWORD must be set as a secret (Settings → Variables and Secrets);
+# it is used to create the administrator account the first time the app runs.
+
+[observability]
+enabled = true

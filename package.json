@@ -7,7 +7,9 @@
     "build": "vite build",
     "start": "node server/index.js",
     "test": "node --test tests/api.test.js",
-    "test:e2e": "node tests/e2e.js"
+    "test:e2e": "node tests/e2e.js",
+    "deploy": "wrangler deploy",
+    "cf:dev": "npm run build && wrangler dev"
   },
   "repository": {
     "type": "git",
@@ -19,9 +21,9 @@
   },
   "homepage": "https://github.com/lincolnrieger/meeting-attendance#readme",
   "dependencies": {
+    "@hono/node-server": "^2.1.6",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^13.0.3",
-    "express": "^5.3.0"
+    "hono": "^4.13.16"
   },
   "devDependencies": {
     "@fontsource/ibm-plex-sans": "^5.3.0",
@@ -31,10 +33,14 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "wrangler": "^4.157.0"
   },
   "private": true,
   "engines": {
     "node": ">=20"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^13.0.3"
   }
 }

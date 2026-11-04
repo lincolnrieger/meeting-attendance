@@ -7,7 +7,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { openDatabase } = require('../server/db');
+const { serve } = require('@hono/node-server');
+const { createNodeDatabase } = require('../server/node-database');
 const { createApp } = require('../server/app');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'board-attendance-test-'));
@@ -27,12 +28,14 @@ async function call(method, url, body, { auth = true } = {}) {
   return { status: res.status, data, headers: res.headers };
 }
 
+const config = { allowDefaultPassword: true, seedSampleData: true, timeZone: 'Australia/Melbourne' };
+
 function startServer() {
-  db = openDatabase(dbPath);
-  const app = createApp(db);
+  db = createNodeDatabase(dbPath);
+  const app = createApp({ getDb: () => db, getConfig: () => config });
   return new Promise((resolve) => {
-    server = app.listen(0, () => {
-      base = `http://127.0.0.1:${server.address().port}/api`;
+    server = serve({ fetch: app.fetch, port: 0 }, (info) => {
+      base = `http://127.0.0.1:${info.port}/api`;
       resolve();
     });
   });
@@ -48,7 +51,6 @@ const person = (over = {}) => ({
 });
 
 before(async () => {
-  process.env.SEED_SAMPLE_DATA = 'true';
   await startServer();
 });
 
@@ -129,7 +131,7 @@ test('validates and creates a meeting with invitees', async () => {
 });
 
 test('prevents duplicate attendance records at the database level', () => {
-  assert.throws(() => db.prepare('INSERT INTO attendance (meeting_id, participant_id) VALUES (?, ?)').run(meetingId, participantId), /UNIQUE|PRIMARY KEY/);
+  assert.throws(() => db.raw.prepare('INSERT INTO attendance (meeting_id, participant_id) VALUES (?, ?)').run(meetingId, participantId), /UNIQUE|PRIMARY KEY/);
 });
 
 test('records attendance and computes totals', async () => {
@@ -198,7 +200,7 @@ test('imports participants from CSV rows, skipping invalid and duplicate rows', 
 
 test('deleting a participant cascades to attendance', async () => {
   assert.equal((await call('DELETE', `/participants/${participantId}`)).status, 200);
-  const n = db.prepare('SELECT COUNT(*) FROM attendance WHERE participant_id = ?').pluck().get(participantId);
+  const n = db.raw.prepare('SELECT COUNT(*) FROM attendance WHERE participant_id = ?').pluck().get(participantId);
   assert.equal(n, 0);
   assert.equal((await call('GET', `/participants/${participantId}`)).status, 404);
 });
@@ -226,4 +228,18 @@ test('changes the administrator password', async () => {
   assert.equal((await call('POST', '/auth/change-password', { current_password: 'admin123', new_password: 'short' })).status, 422);
   assert.equal((await call('POST', '/auth/change-password', { current_password: 'admin123', new_password: 'new-password-1' })).status, 200);
   assert.equal((await call('POST', '/auth/login', { username: 'admin', password: 'new-password-1' })).status, 200);
+});
+
+test('without a default password (Cloudflare), the admin comes from ADMIN_PASSWORD only', async () => {
+  const run = async (cfg) => {
+    const memDb = createNodeDatabase(':memory:');
+    const app = createApp({ getDb: () => memDb, getConfig: () => ({ allowDefaultPassword: false, seedSampleData: false, ...cfg }) });
+    const login = (password) => app.request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password }) });
+    const result = { def: (await login('admin123')).status };
+    if (cfg.adminPassword) result.secret = (await login(cfg.adminPassword)).status;
+    memDb.close();
+    return result;
+  };
+  assert.deepEqual(await run({}), { def: 503 });
+  assert.deepEqual(await run({ adminPassword: 'from-secret-123' }), { def: 401, secret: 200 });
 });

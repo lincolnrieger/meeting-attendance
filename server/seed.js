@@ -9,6 +9,7 @@
  * A seeded pseudo-random generator is used so the data is the same each time.
  */
 const { today } = require('./validation');
+const { multiInsert } = require('./database');
 
 const SAMPLE_NOTE = 'SAMPLE PROFILE — fictional demonstration data. Replace with real participant information.';
 
@@ -102,146 +103,150 @@ function monthsAgoDate(now, months) {
 
 // ---- seed -------------------------------------------------------------------
 
-function seedSampleData(db) {
+async function seedSampleData(db) {
   const rand = mulberry32(20240617);
   const t = today();
   const now = { y: Number(t.slice(0, 4)), m: Number(t.slice(5, 7)), d: Number(t.slice(8, 10)) };
 
-  const insertPerson = db.prepare(`
-    INSERT OR IGNORE INTO participants (first_name, last_name, date_of_birth, email, phone, position, date_joined, status, notes, is_sample)
-    VALUES (@first_name, @last_name, @date_of_birth, @email, @phone, @position, @date_joined, @status, @notes, 1)
-  `);
-  const insertMeeting = db.prepare(`
-    INSERT INTO meetings (title, date, start_time, end_time, location, description, status, is_sample)
-    VALUES (@title, @date, @start_time, @end_time, @location, @description, @status, 1)
-  `);
-  const insertAttendance = db.prepare(`
-    INSERT OR IGNORE INTO attendance (meeting_id, participant_id, status, notes, recorded_at) VALUES (?, ?, ?, ?, ?)
-  `);
+  const participantRows = [];
+  const meetingRows = [];
+  const attendanceRows = [];
+  // IDs are assigned here so everything can be inserted in a few multi-row
+  // statements (one atomic batch) rather than hundreds of separate queries.
+  let nextPersonId = ((await db.value('SELECT MAX(id) FROM participants')) || 0) + 1;
+  let nextMeetingId = ((await db.value('SELECT MAX(id) FROM meetings')) || 0) + 1;
+  const usedEmails = new Set((await db.all('SELECT lower(email) AS email FROM participants')).map((r) => r.email));
 
-  return db.transaction(() => {
-    // People
-    const people = [];
-    for (const p of PEOPLE) {
-      const email = `${p.first}.${p.last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@example.com';
-      const joined = p.joined || monthsAgoDate(now, p.joinedMonthsAgo);
-      const info = insertPerson.run({
-        first_name: p.first,
-        last_name: p.last,
-        date_of_birth: p.dob,
-        email,
-        phone: p.phone,
-        position: p.position,
-        date_joined: joined,
-        status: p.status || 'active',
-        notes: p.note ? `${SAMPLE_NOTE}\n${p.note}` : SAMPLE_NOTE,
-      });
-      if (!info.changes) continue; // email already used by a real record
-      people.push({ ...p, id: Number(info.lastInsertRowid), joined, left: p.leftMonthsAgo ? monthsAgoDate(now, p.leftMonthsAgo) : null });
-    }
+  // People
+  const people = [];
+  for (const p of PEOPLE) {
+    const email = `${p.first}.${p.last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@example.com';
+    const joined = p.joined || monthsAgoDate(now, p.joinedMonthsAgo);
+    if (usedEmails.has(email)) continue; // email already used by a real record
+    const id = nextPersonId++;
+    participantRows.push({
+      id,
+      first_name: p.first,
+      last_name: p.last,
+      date_of_birth: p.dob,
+      email,
+      phone: p.phone,
+      position: p.position,
+      date_joined: joined,
+      status: p.status || 'active',
+      notes: p.note ? `${SAMPLE_NOTE}\n${p.note}` : SAMPLE_NOTE,
+      is_sample: 1,
+    });
+    people.push({ ...p, id, joined, left: p.leftMonthsAgo ? monthsAgoDate(now, p.leftMonthsAgo) : null });
+  }
 
-    // Meetings: [{ title, date, start, end, location, agenda, status, invite: person => bool, online }]
-    const meetings = [];
-    for (let k = -12; k <= 2; k++) {
-      const { y, m } = addMonths(now.y, now.m, k);
-      if (m === 1) continue; // no board meeting in January
-      const date = nthWeekday(y, m, 3, 3); // third Wednesday
-      const videoConf = k === -9;
+  // Meetings: [{ title, date, start, end, location, agenda, status, invite: person => bool, online }]
+  const meetings = [];
+  for (let k = -12; k <= 2; k++) {
+    const { y, m } = addMonths(now.y, now.m, k);
+    if (m === 1) continue; // no board meeting in January
+    const date = nthWeekday(y, m, 3, 3); // third Wednesday
+    const videoConf = k === -9;
+    meetings.push({
+      title: `Board Meeting — ${MONTHS[m - 1]} ${y}`,
+      date,
+      start: '17:30',
+      end: '19:30',
+      location: videoConf ? 'Video conference (Microsoft Teams)' : 'Boardroom, Level 4, 120 Collins Street, Melbourne',
+      agenda: BOARD_AGENDA,
+      cancelled: k === -6,
+      online: videoConf,
+    });
+    if (m % 3 === 2) {
+      // Audit & Risk Committee in Feb, May, Aug, Nov (first Tuesday)
       meetings.push({
-        title: `Board Meeting — ${MONTHS[m - 1]} ${y}`,
-        date,
-        start: '17:30',
-        end: '19:30',
-        location: videoConf ? 'Video conference (Microsoft Teams)' : 'Boardroom, Level 4, 120 Collins Street, Melbourne',
-        agenda: BOARD_AGENDA,
-        cancelled: k === -6,
-        online: videoConf,
-      });
-      if (m % 3 === 2) {
-        // Audit & Risk Committee in Feb, May, Aug, Nov (first Tuesday)
-        meetings.push({
-          title: `Audit & Risk Committee — ${MONTHS[m - 1]} ${y}`,
-          date: nthWeekday(y, m, 2, 1),
-          start: '16:00',
-          end: '17:30',
-          location: 'Meeting Room 2, Level 4',
-          agenda: AUDIT_AGENDA,
-          invite: (p) => AUDIT_COMMITTEE.includes(p.last),
-        });
-      }
-    }
-    {
-      const { y, m } = addMonths(now.y, now.m, -5);
-      meetings.push({
-        title: 'Strategic Planning Day',
-        date: nthWeekday(y, m, 5, 2), // second Friday
-        start: '09:00',
-        end: '16:00',
-        location: 'Function Room 2, Rydges Hotel, Melbourne',
-        agenda: STRATEGY_AGENDA,
-      });
-      const next = addMonths(now.y, now.m, 1);
-      meetings.push({
-        title: `Annual General Meeting ${next.y}`,
-        date: nthWeekday(next.y, next.m, 4, 1), // first Thursday next month
-        start: '18:00',
-        end: '19:30',
-        location: 'Auditorium, Ground Floor, 120 Collins Street, Melbourne',
-        agenda: AGM_AGENDA,
+        title: `Audit & Risk Committee — ${MONTHS[m - 1]} ${y}`,
+        date: nthWeekday(y, m, 2, 1),
+        start: '16:00',
+        end: '17:30',
+        location: 'Meeting Room 2, Level 4',
+        agenda: AUDIT_AGENDA,
+        invite: (p) => AUDIT_COMMITTEE.includes(p.last),
       });
     }
-    meetings.sort((a, b) => a.date.localeCompare(b.date));
+  }
+  {
+    const { y, m } = addMonths(now.y, now.m, -5);
+    meetings.push({
+      title: 'Strategic Planning Day',
+      date: nthWeekday(y, m, 5, 2), // second Friday
+      start: '09:00',
+      end: '16:00',
+      location: 'Function Room 2, Rydges Hotel, Melbourne',
+      agenda: STRATEGY_AGENDA,
+    });
+    const next = addMonths(now.y, now.m, 1);
+    meetings.push({
+      title: `Annual General Meeting ${next.y}`,
+      date: nthWeekday(next.y, next.m, 4, 1), // first Thursday next month
+      start: '18:00',
+      end: '19:30',
+      location: 'Auditorium, Ground Floor, 120 Collins Street, Melbourne',
+      agenda: AGM_AGENDA,
+    });
+  }
+  meetings.sort((a, b) => a.date.localeCompare(b.date));
 
-    const pastBoard = meetings.filter((m) => m.date < t && !m.cancelled && m.title.startsWith('Board'));
-    const latestPast = pastBoard[pastBoard.length - 1];
-    const firstUpcomingBoard = meetings.find((m) => m.date >= t && m.title.startsWith('Board'));
+  const pastBoard = meetings.filter((m) => m.date < t && !m.cancelled && m.title.startsWith('Board'));
+  const latestPast = pastBoard[pastBoard.length - 1];
+  const firstUpcomingBoard = meetings.find((m) => m.date >= t && m.title.startsWith('Board'));
 
-    for (const m of meetings) {
-      const past = m.date < t;
-      const status = m.cancelled ? 'cancelled' : past ? 'completed' : 'upcoming';
-      const description = m.cancelled ? `${m.agenda}\n\nCancelled — insufficient numbers for a quorum. Items deferred to the next meeting.` : m.agenda;
-      const meetingId = Number(insertMeeting.run({
-        title: m.title, date: m.date, start_time: m.start, end_time: m.end,
-        location: m.location, description, status,
-      }).lastInsertRowid);
+  for (const m of meetings) {
+    const past = m.date < t;
+    const status = m.cancelled ? 'cancelled' : past ? 'completed' : 'upcoming';
+    const description = m.cancelled ? `${m.agenda}\n\nCancelled — insufficient numbers for a quorum. Items deferred to the next meeting.` : m.agenda;
+    const meetingId = nextMeetingId++;
+    meetingRows.push({
+      id: meetingId, title: m.title, date: m.date, start_time: m.start, end_time: m.end,
+      location: m.location, description, status, is_sample: 1,
+    });
 
-      const invitees = people.filter((p) => p.joined <= m.date && (!p.left || p.left > m.date) && (!m.invite || m.invite(p)));
-      invitees.forEach((p, idx) => {
-        let st = null;
-        let note = null;
-        if (past && !m.cancelled) {
-          if (m === latestPast && idx % 6 === 5) {
-            st = null; // deliberately left unrecorded to demonstrate outstanding records
-          } else if (rand() < p.rel) {
-            const r = rand();
-            if (m.online || r < (p.online || 0.06)) st = 'online';
-            else if (r < (p.online || 0.06) + 0.07) { st = 'late'; note = 'Arrived 20 minutes late — traffic.'; }
-            else if (r < (p.online || 0.06) + 0.12) { st = 'left_early'; note = 'Left before general business.'; }
-            else st = 'present';
-          } else {
-            st = rand() < 0.68 ? 'apology' : 'absent';
-            if (st === 'apology') note = ['Travelling interstate.', 'Unwell.', 'Prior work commitment.', 'Family commitment.'][Math.floor(rand() * 4)];
-          }
-        } else if (m === firstUpcomingBoard && p.last === 'Clarke') {
-          st = 'apology';
-          note = 'Overseas — apology sent in advance.';
+    const invitees = people.filter((p) => p.joined <= m.date && (!p.left || p.left > m.date) && (!m.invite || m.invite(p)));
+    invitees.forEach((p, idx) => {
+      let st = null;
+      let note = null;
+      if (past && !m.cancelled) {
+        if (m === latestPast && idx % 6 === 5) {
+          st = null; // deliberately left unrecorded to demonstrate outstanding records
+        } else if (rand() < p.rel) {
+          const r = rand();
+          if (m.online || r < (p.online || 0.06)) st = 'online';
+          else if (r < (p.online || 0.06) + 0.07) { st = 'late'; note = 'Arrived 20 minutes late — traffic.'; }
+          else if (r < (p.online || 0.06) + 0.12) { st = 'left_early'; note = 'Left before general business.'; }
+          else st = 'present';
+        } else {
+          st = rand() < 0.68 ? 'apology' : 'absent';
+          if (st === 'apology') note = ['Travelling interstate.', 'Unwell.', 'Prior work commitment.', 'Family commitment.'][Math.floor(rand() * 4)];
         }
-        insertAttendance.run(meetingId, p.id, st, note, st ? `${m.date} 20:00:00` : null);
-      });
-    }
+      } else if (m === firstUpcomingBoard && p.last === 'Clarke') {
+        st = 'apology';
+        note = 'Overseas — apology sent in advance.';
+      }
+      attendanceRows.push({ meeting_id: meetingId, participant_id: p.id, status: st, notes: note, recorded_at: st ? `${m.date} 20:00:00` : null });
+    });
+  }
 
-    db.prepare(`INSERT OR REPLACE INTO app_meta (key, value) VALUES ('sample_seeded_at', datetime('now'))`).run();
-    return { participants: people.length, meetings: meetings.length };
-  })();
+
+  await db.batch([
+    ...multiInsert('participants', ['id', 'first_name', 'last_name', 'date_of_birth', 'email', 'phone', 'position', 'date_joined', 'status', 'notes', 'is_sample'], participantRows),
+    ...multiInsert('meetings', ['id', 'title', 'date', 'start_time', 'end_time', 'location', 'description', 'status', 'is_sample'], meetingRows),
+    ...multiInsert('attendance', ['meeting_id', 'participant_id', 'status', 'notes', 'recorded_at'], attendanceRows, { chunk: 400 }),
+    ["INSERT OR REPLACE INTO app_meta (key, value) VALUES ('sample_seeded_at', datetime('now'))"],
+  ]);
+  return { participants: people.length, meetings: meetings.length };
 }
 
 /** Seed on first launch only (when the database has no participants or meetings and was never seeded). */
-function seedIfEmpty(db) {
-  if (process.env.SEED_SAMPLE_DATA === 'false') return;
-  const seeded = db.prepare(`SELECT value FROM app_meta WHERE key = 'sample_seeded_at'`).get();
-  const hasData = db.prepare('SELECT (SELECT COUNT(*) FROM participants) + (SELECT COUNT(*) FROM meetings)').pluck().get();
+async function seedIfEmpty(db) {
+  const seeded = await db.first(`SELECT value FROM app_meta WHERE key = 'sample_seeded_at'`);
+  const hasData = await db.value('SELECT (SELECT COUNT(*) FROM participants) + (SELECT COUNT(*) FROM meetings)');
   if (seeded || hasData) return;
-  const r = seedSampleData(db);
+  const r = await seedSampleData(db);
   console.log(`[seed] Loaded sample data: ${r.participants} participants, ${r.meetings} meetings.`);
 }
 
