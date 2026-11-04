@@ -7,6 +7,7 @@ import { useApi } from '../lib/useApi';
 import { useAppSettings } from '../lib/settings';
 import { formatRate, statusLabel, STATUS_BY_VALUE } from '../lib/attendance';
 import { downloadCSV } from '../lib/csv';
+import { formatFieldValue } from '../lib/customFields';
 import { age, formatDate, formatTimeRange, fullName } from '../lib/format';
 import { AttendanceBadge, Avatar, EmptyState, ErrorNotice, Loading, MeetingStatusBadge, PageHeader, Panel, SampleTag, StatusBreakdown } from '../components/ui';
 import { AttendanceStrip, RateLineChart } from '../components/Charts';
@@ -18,7 +19,7 @@ export default function ParticipantProfile() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const toast = useToast();
-  const { t } = useAppSettings();
+  const { t, fields } = useAppSettings();
 
   // Rolling attendance rate (last 4 recorded meetings) for the trend chart.
   const chart = useMemo(() => {
@@ -110,6 +111,19 @@ export default function ParticipantProfile() {
             <dt>Notes</dt>
             <dd className="pre">{p.notes || <span className="muted">—</span>}</dd>
           </dl>
+          {fields.some((f) => p.custom?.[f.id]) && (
+            <>
+              <h3 className="details-heading">Additional details</h3>
+              <dl className="details">
+                {fields.filter((f) => p.custom?.[f.id]).map((f) => (
+                  <div key={f.id} className="details-row">
+                    <dt>{f.label}</dt>
+                    <dd className={f.type === 'long_text' ? 'pre' : ''}>{formatFieldValue(f, p.custom[f.id])}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          )}
         </Panel>
 
         <div className="stack">

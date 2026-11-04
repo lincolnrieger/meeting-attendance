@@ -1,31 +1,21 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Download, FileUp, Info, Pencil, Search, Trash2, UserPlus, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { useAppSettings } from '../lib/settings';
 import { formatRate } from '../lib/attendance';
-import { downloadCSV, parseCSVObjects } from '../lib/csv';
+import { downloadCSV } from '../lib/csv';
+import { exportFieldValue } from '../lib/customFields';
 import { formatDate, fullName, todayISO } from '../lib/format';
 import { EmptyState, ErrorNotice, Loading, PageHeader, PersonCell, RateBar } from '../components/ui';
-import { Modal, useConfirm, useToast } from '../components/Feedback';
+import { useConfirm, useToast } from '../components/Feedback';
+import ImportDialog, { TEMPLATE_COLUMNS } from '../components/ImportDialog';
 
-/** Columns used for both export and the import template, so files round-trip. */
-const EXPORT_COLUMNS = [
-  { key: 'first_name', label: 'First name' },
-  { key: 'last_name', label: 'Last name' },
-  { key: 'email', label: 'Email' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'position', label: 'Role' },
-  { key: 'date_of_birth', label: 'Date of birth' },
-  { key: 'date_joined', label: 'Date joined' },
-  { key: 'status', label: 'Status' },
-  { key: 'notes', label: 'Notes' },
-];
 
 export default function Participants() {
   const { data, error, loading, reload } = useApi('/participants');
-  const { t } = useAppSettings();
+  const { t, fields } = useAppSettings();
   const [params, setParams] = useSearchParams();
   const [showImport, setShowImport] = useState(false);
   const confirm = useConfirm();
@@ -47,7 +37,8 @@ export default function Participants() {
     return all.filter(
       (p) =>
         (status === 'all' || p.status === status) &&
-        (!q || fullName(p).toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || p.position.toLowerCase().includes(q)),
+        (!q || fullName(p).toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || p.position.toLowerCase().includes(q) ||
+          Object.values(p.custom || {}).some((v) => String(v).toLowerCase().includes(q))),
     );
   }, [all, search, status]);
 
@@ -81,8 +72,10 @@ export default function Participants() {
   }
 
   function exportCSV() {
+    // Same leading columns as the import template, so an export can be re-imported.
     downloadCSV(`${t.participants.replace(/\s+/g, '-')}-${todayISO()}.csv`, rows, [
-      ...EXPORT_COLUMNS,
+      ...TEMPLATE_COLUMNS,
+      ...fields.map((f) => ({ label: f.label, value: (r) => exportFieldValue(f, r.custom?.[f.id]) })),
       { key: 'recorded', label: `${t.Events} recorded` },
       { key: 'attended', label: `${t.Events} attended` },
       { key: 'apology', label: 'Apologies' },
@@ -99,7 +92,7 @@ export default function Participants() {
         subtitle={`Everyone whose attendance is recorded at your ${t.events}.`}
         actions={
           <>
-            <button className="btn" onClick={() => setShowImport(true)}><FileUp size={16} /> Import CSV</button>
+            <button className="btn" onClick={() => setShowImport(true)}><FileUp size={16} /> Import</button>
             <button className="btn" onClick={exportCSV} disabled={!rows.length}><Download size={16} /> Export</button>
             <Link to="/participants/new" className="btn btn-primary"><UserPlus size={16} /> Add {t.participant}</Link>
           </>
@@ -122,7 +115,7 @@ export default function Participants() {
           <input
             className="input"
             type="search"
-            placeholder="Search by name, email or role"
+            placeholder="Search by name, email, role or any detail"
             value={search}
             onChange={(e) => setParam('q', e.target.value)}
             aria-label={`Search ${t.participants}`}
@@ -185,129 +178,7 @@ export default function Participants() {
         </div>
       )}
 
-      {showImport && <ImportDialog t={t} onClose={() => setShowImport(false)} onDone={reload} />}
+      {showImport && <ImportDialog onClose={() => setShowImport(false)} onDone={reload} />}
     </>
-  );
-}
-
-function ImportDialog({ t, onClose, onDone }) {
-  const fileRef = useRef(null);
-  const [rows, setRows] = useState(null);
-  const [fileName, setFileName] = useState('');
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const toast = useToast();
-
-  async function pick(e) {
-    const file = e.target.files[0];
-    setResult(null);
-    setError(null);
-    if (!file) return;
-    setFileName(file.name);
-    try {
-      const parsed = parseCSVObjects(await file.text());
-      if (!parsed.length) throw new Error('The file has no data rows.');
-      if (!('email' in parsed[0]) || !('first_name' in parsed[0]) || !('last_name' in parsed[0])) {
-        throw new Error('The file must include "First name", "Last name" and "Email" columns. Download the template for the expected format.');
-      }
-      // A "Role" column is stored as the position.
-      for (const r of parsed) if (r.role && !r.position) r.position = r.role;
-      // Accept Australian-style dates (DD/MM/YYYY) as well as YYYY-MM-DD.
-      for (const r of parsed) {
-        for (const k of ['date_of_birth', 'date_joined']) {
-          const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(r[k] || '');
-          if (m) r[k] = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-        }
-      }
-      setRows(parsed);
-    } catch (err) {
-      setRows(null);
-      setError(err);
-    }
-  }
-
-  async function runImport() {
-    setBusy(true);
-    try {
-      const r = await api.post('/participants/import', { rows });
-      setResult(r);
-      if (r.created) {
-        toast(`Imported ${r.created} ${r.created === 1 ? t.participant : t.participants}.`);
-        onDone();
-      }
-    } catch (err) {
-      setError(err);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function template() {
-    downloadCSV('participant-import-template.csv', [
-      { first_name: 'Alex', last_name: 'Citizen', email: 'alex.citizen@example.com', phone: '0400 000 000', position: 'Member', date_of_birth: '1980-05-17', date_joined: todayISO(), status: 'active', notes: '' },
-    ], EXPORT_COLUMNS);
-  }
-
-  return (
-    <Modal title={`Import ${t.participants} from CSV`} onClose={onClose}>
-      <div className="modal-body stack">
-        <p className="muted">
-          The first row must contain column headings. Required: <strong>First name, Last name, Email, Role, Date joined</strong> (a column called Position also works for Role).
-          Optional: Phone, Date of birth, Status (active/inactive), Notes. Dates may be YYYY-MM-DD or DD/MM/YYYY.
-          Rows with an email that already exists are skipped.
-        </p>
-        <div className="row gap">
-          <button type="button" className="btn" onClick={() => fileRef.current.click()}><FileUp size={16} /> Choose file…</button>
-          <span className="muted small">{fileName || 'No file selected'}</span>
-          <button type="button" className="link ml-auto" onClick={template}>Download template</button>
-        </div>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={pick} />
-        <ErrorNotice error={error} />
-
-        {rows && !result && (
-          <div>
-            <p className="small"><strong>{rows.length}</strong> row{rows.length === 1 ? '' : 's'} found. Preview:</p>
-            <div className="table-wrap bordered">
-              <table className="table table-compact">
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
-                <tbody>
-                  {rows.slice(0, 5).map((r, i) => (
-                    <tr key={i}><td>{r.first_name} {r.last_name}</td><td>{r.email}</td><td>{r.position}</td><td>{r.date_joined}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {rows.length > 5 && <p className="muted small">…and {rows.length - 5} more.</p>}
-          </div>
-        )}
-
-        {result && (
-          <div className="stack">
-            <div className="notice notice-success">Imported {result.created} {result.created === 1 ? t.participant : t.participants}. {result.skipped.length} row{result.skipped.length === 1 ? '' : 's'} skipped.</div>
-            {result.skipped.length > 0 && (
-              <div className="table-wrap bordered">
-                <table className="table table-compact">
-                  <thead><tr><th>Line</th><th>Name</th><th>Reason</th></tr></thead>
-                  <tbody>
-                    {result.skipped.map((s) => (
-                      <tr key={s.line}><td>{s.line}</td><td>{s.name || '—'}</td><td>{s.reason}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      <div className="modal-footer">
-        <button type="button" className="btn" onClick={onClose}>{result ? 'Close' : 'Cancel'}</button>
-        {!result && (
-          <button type="button" className="btn btn-primary" disabled={!rows || busy} onClick={runImport}>
-            {busy ? 'Importing…' : `Import ${rows ? rows.length : ''} ${rows?.length === 1 ? t.participant : t.participants}`}
-          </button>
-        )}
-      </div>
-    </Modal>
   );
 }

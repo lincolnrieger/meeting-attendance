@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, Database, KeyRound, ListChecks } from 'lucide-react';
+import { Building2, Database, KeyRound, ListChecks, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/useApi';
-import { useAppSettings } from '../lib/settings';
-import { PRESETS } from '../lib/presets';
+import { GENERAL_DEFAULTS, useAppSettings } from '../lib/settings';
 import { ErrorNotice, Field, PageHeader, Panel } from '../components/ui';
+import { CustomFieldsManager } from '../components/CustomFields';
 import { useConfirm, useToast } from '../components/Feedback';
 
 export default function Settings() {
   return (
     <>
-      <PageHeader title="Settings" subtitle="Organisation, terminology, form suggestions, account and sample data." />
+      <PageHeader title="Settings" subtitle="Organisation, terminology, custom fields, form suggestions, account and sample data." />
       <OrganisationSettings />
+      <Panel title={<span className="icon-text"><SlidersHorizontal size={16} /> Custom fields</span>}>
+        <CustomFieldsManager />
+      </Panel>
       <div className="settings-grid">
         <PasswordPanel />
         <SampleDataPanel />
@@ -40,7 +43,6 @@ const countLines = (text) => text.split('\n').filter((v) => v.trim()).length;
 function OrganisationSettings() {
   const { settings, save } = useAppSettings();
   const [form, setForm] = useState(() => toForm(settings));
-  const [preset, setPreset] = useState('');
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
@@ -55,25 +57,14 @@ function OrganisationSettings() {
     if (errors[k]) setErrors((er) => ({ ...er, [k]: undefined }));
   };
 
-  async function applyPreset() {
-    const p = PRESETS.find((x) => x.key === preset);
-    if (!p) return;
+  async function restoreDefaults() {
     const ok = await confirm({
-      title: `Use the "${p.label}" template?`,
-      message: `This fills in the terminology (${p.participant[1]} and ${p.event[1]}) and replaces the role, title and location suggestions below. Nothing is saved until you click Save, and your existing records are not changed.`,
-      confirmLabel: 'Apply template',
+      title: 'Restore the default terminology and suggestions?',
+      message: `This sets the terms back to ${GENERAL_DEFAULTS.participant_plural} and ${GENERAL_DEFAULTS.event_plural} and replaces the role, title and location suggestions below with the standard ones. Your organisation name, custom fields and records are not changed, and nothing is saved until you click Save.`,
+      confirmLabel: 'Restore defaults',
     });
     if (!ok) return;
-    setForm((f) => ({
-      ...f,
-      participant_singular: p.participant[0],
-      participant_plural: p.participant[1],
-      event_singular: p.event[0],
-      event_plural: p.event[1],
-      role_suggestions: p.roles.join('\n'),
-      title_suggestions: p.titles.join('\n'),
-      location_suggestions: p.locations.join('\n'),
-    }));
+    setForm((f) => ({ ...f, ...toForm(GENERAL_DEFAULTS), organisation_name: f.organisation_name }));
     setErrors({});
   }
 
@@ -98,17 +89,10 @@ function OrganisationSettings() {
 
   return (
     <form onSubmit={submit} className="org-settings" noValidate>
-      <Panel title={<span className="icon-text"><Building2 size={16} /> Organisation and terminology</span>}>
-        <div className="template-row">
-          <div className="field grow">
-            <label htmlFor="preset">Start from a template</label>
-            <select id="preset" className="input" value={preset} onChange={(e) => setPreset(e.target.value)}>
-              <option value="">Choose a type of group…</option>
-              {PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-            </select>
-          </div>
-          <button type="button" className="btn" onClick={applyPreset} disabled={!preset}>Apply template</button>
-        </div>
+      <Panel
+        title={<span className="icon-text"><Building2 size={16} /> Organisation and terminology</span>}
+        actions={<button type="button" className="btn btn-sm" onClick={restoreDefaults}><RotateCcw size={14} /> Restore defaults</button>}
+      >
 
         <div className="form-grid">
           <Field label="Organisation name" htmlFor="organisation_name" error={errors.organisation_name} required className="span-2" hint="Shown in the sidebar, on the sign-in page and in the browser tab.">

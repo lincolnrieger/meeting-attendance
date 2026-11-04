@@ -55,6 +55,7 @@ function createApp({ getDb, getConfig }) {
   api.route('/dashboard', require('./routes/dashboard')());
   api.route('/reports', require('./routes/reports')());
   api.route('/settings', require('./routes/settings')());
+  api.route('/custom-fields', require('./routes/custom-fields')());
   app.route('/api', api);
 
   app.all('/api/*', (c) => c.json({ error: 'Not found.' }, 404));

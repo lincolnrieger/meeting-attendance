@@ -7,7 +7,9 @@ list of people, schedule sessions and record attendance over time.
 Everything adapts to your group in **Settings**: the organisation name, what people and
 sessions are called (e.g. *Students* and *Classes*, *Scouts* and *Troop Nights*), and the
 suggestions offered in forms for roles (e.g. Teacher, Scout Leader, Coach), session titles
-and locations. Ready-made templates fill these in with one click.
+and locations. **Custom fields** let you record any extra details for each person (membership
+number, emergency contact, screening expiry…), and an Excel/CSV import can create them
+straight from your spreadsheet's column headings.
 
 It includes a dashboard, participant profiles with
 individual attendance histories, a fast attendance register, and date-filtered reports
@@ -126,9 +128,14 @@ They can be reloaded from the same place.
 ## Features
 
 **Settings → Organisation and terminology** — organisation name (sidebar, sign-in page,
-browser tab); what people and sessions are called, used throughout the interface; and
-templates for common groups (general/community, school, scouts/youth, sports, board/committee,
-volunteers, workplace training).
+browser tab); and what people and sessions are called, used throughout the interface.
+**Restore defaults** puts the standard terminology and suggestions back.
+
+**Settings → Custom fields** — define extra details recorded for every person: text, long
+text, number, date or yes/no. Rename, retype, reorder or delete them (deleting removes
+everyone's values for that field). Fields can also be added straight from the add / edit
+person form. They appear in the form, on profiles (only filled-in values are shown), in
+search, and as extra columns in the people export.
 
 **Settings → Form suggestions** — editable lists (one per line) of suggested **roles**,
 **session titles** and **locations**. These appear as you type in the person and session
@@ -141,8 +148,16 @@ time, location and expected attendees (invited minus apologies already received)
 
 **Participants** — add, edit and delete profiles (name, date of birth, email, optional
 phone, position, date joined, optional photo or initials avatar, active/inactive status,
-notes). Search by name, email or position; filter by status; import from CSV (with
-preview, validation and duplicate detection — a template is provided); export to CSV.
+notes, plus any custom fields). Search by name, email, role or any custom detail; filter by
+status; export to CSV.
+
+**Import (Excel .xlsx or CSV)** — choose the sheet and the row holding the column headings
+(both detected automatically), then decide what each column becomes: a standard field
+(a single "Name" column can be split into first and last name), an existing custom field,
+a **new custom field** (name and type guessed from the data), or skipped. Calculated
+(formula) columns and blank template rows are skipped by default. Defaults can be given
+for role and date joined; rows with problems or an email that already exists are skipped
+and listed with the reason. Excel files are read in the browser — no extra dependency.
 
 **Participant profile** — personal information, totals (meetings invited, attended,
 absences, apologies, attendance %), a trend chart (rolling attendance rate plus a
@@ -198,14 +213,15 @@ server/
     meetings.js       Meeting CRUD, invitations, attendance register
     dashboard.js      Dashboard figures
     reports.js        Date-range reports
-    settings.js       Sample data management
+    settings.js       Organisation settings and sample data
+    custom-fields.js  Custom field definitions
 client/
   index.html
   src/
     App.jsx           Routes and auth state
     styles.css        All styling (design tokens at the top)
     components/       Layout, charts, dialogs/toasts, shared UI pieces
-    lib/              API client, settings/terminology context, templates, formatting, CSV helpers
+    lib/              API client, settings context, custom fields, CSV / Excel import, formatting
     pages/            One file per screen
 tests/
   api.test.js         API integration tests (node:test)

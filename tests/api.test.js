@@ -198,6 +198,81 @@ test('imports participants from CSV rows, skipping invalid and duplicate rows', 
   assert.equal(r.data.skipped.length, 2);
 });
 
+test('custom fields: define, store values per person, validate, reorder and delete', async () => {
+  assert.equal((await call('POST', '/custom-fields', { label: '', type: 'text' })).status, 422);
+  assert.equal((await call('POST', '/custom-fields', { label: 'X', type: 'colour' })).status, 422);
+  const memNo = (await call('POST', '/custom-fields', { label: 'Membership No', type: 'text' })).data.field;
+  const expiry = (await call('POST', '/custom-fields', { label: 'WWCC expiry', type: 'date' })).data.field;
+  const myScout = (await call('POST', '/custom-fields', { label: 'On myScout', type: 'yes_no' })).data.field;
+  assert.equal((await call('POST', '/custom-fields', { label: 'membership no' })).status, 422, 'names are unique');
+
+  const bad = await call('POST', '/participants', person({ email: 'cf@test.example', custom: { [expiry.id]: '31/02/2030' } }));
+  assert.equal(bad.status, 422);
+  assert.ok(bad.data.errors[`custom_${expiry.id}`]);
+
+  const created = await call('POST', '/participants', person({
+    email: 'cf@test.example', custom: { [memNo.id]: ' 232282 ', [expiry.id]: '2030-08-06', [myScout.id]: 'Y', 999: 'ignored' },
+  }));
+  assert.equal(created.status, 201);
+  const id = created.data.participant.id;
+  assert.deepEqual(created.data.participant.custom, { [memNo.id]: '232282', [expiry.id]: '2030-08-06', [myScout.id]: 'yes' });
+  assert.ok(!('custom_values' in created.data.participant));
+
+  const list = await call('GET', '/participants?search=232282');
+  assert.deepEqual(list.data.participants.map((p) => p.id), [id], 'search covers custom values');
+
+  const usage = (await call('GET', '/custom-fields')).data.usage;
+  assert.equal(usage[memNo.id], 1);
+
+  const order = await call('PUT', '/custom-fields/order', { ids: [myScout.id, expiry.id, memNo.id] });
+  assert.deepEqual(order.data.fields.map((f) => f.label), ['On myScout', 'WWCC expiry', 'Membership No']);
+  assert.equal((await call('PUT', `/custom-fields/${memNo.id}`, { label: 'Membership number', type: 'text' })).data.field.label, 'Membership number');
+
+  assert.equal((await call('DELETE', `/custom-fields/${expiry.id}`)).status, 200);
+  const after = (await call('GET', `/participants/${id}`)).data.participant;
+  assert.deepEqual(after.custom, { [memNo.id]: '232282', [myScout.id]: 'yes' }, 'values for the deleted field are removed');
+  await call('DELETE', `/participants/${id}`);
+  for (const f of [memNo, myScout]) await call('DELETE', `/custom-fields/${f.id}`);
+});
+
+test('import creates new custom fields from spreadsheet columns, only when rows are imported', async () => {
+  const none = await call('POST', '/participants/import', {
+    rows: [{ line: 5, first_name: 'No', last_name: 'Email', position: 'Member', date_joined: '2025-01-01', custom: { 'new:1': 'x' } }],
+    new_fields: [{ key: 'new:1', label: 'Suburb', type: 'text' }],
+  });
+  assert.equal(none.data.created, 0);
+  assert.equal(none.data.skipped[0].line, 5);
+  assert.equal((await call('GET', '/custom-fields')).data.fields.length, 0, 'no fields created when nothing was imported');
+
+  const r = await call('POST', '/participants/import', {
+    rows: [
+      { line: 5, first_name: 'Ash', last_name: 'Clonan', email: 'ash@test.example', position: 'Youth Commissioner', date_joined: '2025-03-05', custom: { 'new:1': 'Evanston Park', 'new:2': '2029-07-29' } },
+      { line: 6, first_name: 'Bad', last_name: 'Date', email: 'bad@test.example', position: 'Youth Commissioner', date_joined: '2025-03-05', custom: { 'new:2': 'soon' } },
+    ],
+    new_fields: [{ key: 'new:1', label: 'Suburb', type: 'text' }, { key: 'new:2', label: 'WWCC expiry', type: 'date' }],
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.created, 1);
+  assert.equal(r.data.fields_created, 2);
+  assert.match(r.data.skipped[0].reason, /WWCC expiry must be a valid date/);
+  const fields = (await call('GET', '/custom-fields')).data.fields;
+  assert.deepEqual(fields.map((f) => [f.label, f.type]), [['Suburb', 'text'], ['WWCC expiry', 'date']]);
+  const ash = (await call('GET', '/participants?search=Clonan')).data.participants[0];
+  assert.deepEqual(ash.custom, { [fields[0].id]: 'Evanston Park', [fields[1].id]: '2029-07-29' });
+
+  // A "new" field with an existing name is merged into that field.
+  const again = await call('POST', '/participants/import', {
+    rows: [{ first_name: 'Cam', last_name: 'Smith', email: 'cam@test.example', position: 'Youth Commissioner', date_joined: '2026-03-04', custom: { 'new:9': 'Andrews Farm' } }],
+    new_fields: [{ key: 'new:9', label: 'suburb', type: 'text' }],
+  });
+  assert.equal(again.data.fields_created, 0);
+  assert.equal((await call('GET', '/custom-fields')).data.fields.length, 2);
+  for (const p of (await call('GET', '/participants?search=test.example')).data.participants) {
+    if (['ash@test.example', 'cam@test.example'].includes(p.email)) await call('DELETE', `/participants/${p.id}`);
+  }
+  for (const f of fields) await call('DELETE', `/custom-fields/${f.id}`);
+});
+
 test('deleting a participant cascades to attendance', async () => {
   assert.equal((await call('DELETE', `/participants/${participantId}`)).status, 200);
   const n = db.raw.prepare('SELECT COUNT(*) FROM attendance WHERE participant_id = ?').pluck().get(participantId);
