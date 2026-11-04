@@ -122,7 +122,7 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
 
     step('3. Create a meeting');
     await page.goto(`${BASE}/meetings/new`);
-    await page.fill('#title', 'Special Board Meeting — Capital Works');
+    await page.fill('#title', 'Special Meeting — Hall Renovation');
     await page.fill('#date', '2026-10-28');
     await page.fill('#start_time', '18:00');
     await page.fill('#end_time', '17:00');
@@ -178,27 +178,27 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
 
     step('6. Review individual attendance history');
     await page.goto(participantUrl);
-    const histRow = page.locator('tr', { hasText: 'Special Board Meeting — Capital Works' });
+    const histRow = page.locator('tr', { hasText: 'Special Meeting — Hall Renovation' });
     await histRow.waitFor();
     assert.ok(await histRow.locator('.badge-present').isVisible());
     assert.equal((await page.locator('.kpi', { hasText: 'Attendance rate' }).locator('.kpi-value').textContent()).trim(), '100%');
     const dl1 = page.waitForEvent('download');
     await page.click('button:has-text("Export history")');
     const historyCsv = fs.readFileSync(await (await dl1).path(), 'utf8');
-    assert.match(historyCsv, /Special Board Meeting — Capital Works.*Present/);
+    assert.match(historyCsv, /Special Meeting — Hall Renovation.*Present/);
     ok('history shows the meeting as Present; history CSV exported');
 
     step('7. Generate and export reports');
     await page.goto(`${BASE}/reports?range=custom&from=2026-10-27&to=2026-10-29&view=meetings`);
-    await page.locator('tbody tr', { hasText: 'Capital Works' }).waitFor();
+    await page.locator('tbody tr', { hasText: 'Hall Renovation' }).waitFor();
     assert.equal(await page.locator('tbody tr').count(), 1);
     const dl2 = page.waitForEvent('download');
     await page.click('button:has-text("Export CSV")');
     const reportCsv = fs.readFileSync(await (await dl2).path(), 'utf8');
     assert.match(reportCsv, /Date,Start,Meeting,Location,Invited/);
-    assert.match(reportCsv, /2026-10-28,18:00,Special Board Meeting — Capital Works,"Meeting Room 2, Level 4",4,4,3/);
+    assert.match(reportCsv, /2026-10-28,18:00,Special Meeting — Hall Renovation,"Meeting Room 2, Level 4",4,4,3/);
     ok('date-filtered meeting report exported to CSV');
-    await page.click('.tabs button:has-text("By member")');
+    await page.click('.tabs button:has-text("By participant")');
     await page.locator('tbody tr', { hasText: 'Lindqvist' }).waitFor();
     assert.equal(await page.locator('tbody tr').count(), 4);
     await page.goto(`${BASE}/reports`);
@@ -208,8 +208,8 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
 
     step('CSV import and export of participants');
     const csvPath = path.join(tmp, 'import.csv');
-    fs.writeFileSync(csvPath, 'First name,Last name,Email,Phone,Position,Date of birth,Date joined,Status,Notes\n' +
-      'Sam,Okafor,sam.okafor@example.org,,Board Observer,03/04/1992,01/09/2025,active,"Imported, with comma"\n' +
+    fs.writeFileSync(csvPath, 'First name,Last name,Email,Phone,Role,Date of birth,Date joined,Status,Notes\n' +
+      'Sam,Okafor,sam.okafor@example.org,,Parent Helper,03/04/1992,01/09/2025,active,"Imported, with comma"\n' +
       'Dup,Person,rebecca.lindqvist@example.org,,Director,,2025-01-01,active,\n');
     await page.goto(`${BASE}/participants`);
     await page.click('button:has-text("Import CSV")');
@@ -222,17 +222,17 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
     const dl3 = page.waitForEvent('download');
     await page.click('button:has-text("Export")');
     const exportCsv = fs.readFileSync(await (await dl3).path(), 'utf8');
-    assert.match(exportCsv, /Sam,Okafor,sam\.okafor@example\.org,,Board Observer,1992-04-03,2025-09-01,active,"Imported, with comma"/);
+    assert.match(exportCsv, /Sam,Okafor,sam\.okafor@example\.org,,Parent Helper,1992-04-03,2025-09-01,active,"Imported, with comma"/);
     ok('CSV import (with duplicate skipped, AU dates) and export round-trip');
 
     step('Duplicate and cancel a meeting');
     await page.goto(meetingUrl);
     await page.click('a:has-text("Duplicate")');
     await page.waitForURL(/duplicate=/);
-    assert.equal(await page.inputValue('#title'), 'Special Board Meeting — Capital Works');
+    assert.equal(await page.inputValue('#title'), 'Special Meeting — Hall Renovation');
     assert.equal(await page.inputValue('#date'), '');
     await page.fill('#date', '2027-03-10');
-    await page.fill('#title', 'Special Board Meeting — Follow-up');
+    await page.fill('#title', 'Special Meeting — Follow-up');
     await page.click('button:has-text("Create meeting")');
     await page.waitForURL(/\/meetings\/\d+$/);
     await page.waitForSelector('.register-row');
@@ -254,6 +254,36 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
     await page.getByText('Sam Okafor was deleted.').waitFor();
     ok('delete asks for confirmation; cancel keeps the record, confirm removes it');
 
+    step('Customise organisation, terminology and suggestions');
+    await page.goto(`${BASE}/settings`);
+    await page.waitForSelector('#organisation_name');
+    await page.selectOption('#preset', 'school');
+    await page.click('button:has-text("Apply template")');
+    await page.click('.modal button:has-text("Apply template")');
+    assert.equal(await page.inputValue('#participant_plural'), 'Students');
+    assert.match(await page.inputValue('#role_suggestions'), /^Student\n.*Teacher/s);
+    await page.fill('#organisation_name', 'Riverside Primary School');
+    await page.fill('#role_suggestions', (await page.inputValue('#role_suggestions')) + '\nLibrary Monitor');
+    await page.click('button:has-text("Save settings")');
+    await page.getByText('Settings saved.').waitFor();
+    await page.reload();
+    await page.waitForSelector('#organisation_name');
+    assert.equal(await page.inputValue('#organisation_name'), 'Riverside Primary School');
+    assert.equal(await page.locator('.brand-name').textContent(), 'Riverside Primary School');
+    assert.ok(await page.locator('.nav-item', { hasText: 'Students' }).isVisible());
+    assert.ok(await page.locator('.nav-item', { hasText: 'Classes' }).isVisible());
+    await page.screenshot({ path: path.join(SHOTS, 'settings.png'), fullPage: true });
+    ok('school template applied, edited, saved and reflected in the navigation after reload');
+    await page.goto(`${BASE}/participants/new`);
+    await page.getByRole('heading', { name: 'Add student' }).waitFor();
+    const roleOptions = await page.locator('#role-suggestions option').evaluateAll((els) => els.map((e) => e.value));
+    assert.ok(roleOptions.includes('Teacher') && roleOptions.includes('Library Monitor'));
+    await page.goto(`${BASE}/meetings/new`);
+    await page.getByRole('heading', { name: 'New class' }).waitFor();
+    const titleOptions = await page.locator('#title-suggestions option').evaluateAll((els) => els.map((e) => e.value));
+    assert.ok(titleOptions.includes('Mathematics'));
+    ok('forms use the new terms and suggest the customised roles and titles');
+
     step(EXTERNAL ? 'Persistence across a fresh page load' : 'Persistence across an application restart');
     await stopServer();
     await startServer();
@@ -262,6 +292,7 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
     assert.equal(await row('David Nguyen').locator('button.sb-apology').getAttribute('aria-checked'), 'true');
     await page.goto(`${BASE}/`);
     await page.waitForSelector('.kpis');
+    await page.locator('.kpi-label', { hasText: 'Classes held' }).waitFor();
     await page.screenshot({ path: path.join(SHOTS, 'dashboard.png'), fullPage: true });
     ok(EXTERNAL ? 'data still present' : 'data and login session survive a server restart');
 

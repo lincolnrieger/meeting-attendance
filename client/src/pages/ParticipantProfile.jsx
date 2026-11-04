@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Download, Mail, Pencil, Phone, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/useApi';
+import { useAppSettings } from '../lib/settings';
 import { formatRate, statusLabel, STATUS_BY_VALUE } from '../lib/attendance';
 import { downloadCSV } from '../lib/csv';
 import { age, formatDate, formatTimeRange, fullName } from '../lib/format';
@@ -17,6 +18,7 @@ export default function ParticipantProfile() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const toast = useToast();
+  const { t } = useAppSettings();
 
   // Rolling attendance rate (last 4 recorded meetings) for the trend chart.
   const chart = useMemo(() => {
@@ -42,9 +44,9 @@ export default function ParticipantProfile() {
 
   async function remove() {
     const ok = await confirm({
-      title: 'Delete participant',
+      title: `Delete ${t.participant}`,
       message: `Permanently delete ${fullName(p)} and all ${history.length} of their attendance records? This cannot be undone.`,
-      confirmLabel: 'Delete participant',
+      confirmLabel: `Delete ${t.participant}`,
       danger: true,
     });
     if (!ok) return;
@@ -60,7 +62,7 @@ export default function ParticipantProfile() {
   function exportHistory() {
     downloadCSV(`attendance-${p.first_name}-${p.last_name}.csv`.toLowerCase().replace(/[^a-z0-9.-]+/g, '-'), history, [
       { key: 'date', label: 'Date' },
-      { key: 'title', label: 'Meeting' },
+      { key: 'title', label: t.Event },
       { key: 'location', label: 'Location' },
       { value: (h) => (h.meeting_status === 'cancelled' ? 'Cancelled' : h.held ? 'Held' : 'Upcoming'), label: 'Meeting status' },
       { value: (h) => statusLabel(h.status), label: 'Attendance' },
@@ -71,7 +73,7 @@ export default function ParticipantProfile() {
   return (
     <>
       <PageHeader
-        breadcrumb={<Link to="/participants">Participants</Link>}
+        breadcrumb={<Link to="/participants">{t.Participants}</Link>}
         title={
           <span className="title-with-avatar">
             <Avatar person={p} size={44} />
@@ -101,7 +103,7 @@ export default function ParticipantProfile() {
             <dd>{p.phone ? <a href={`tel:${p.phone.replace(/\s/g, '')}`} className="icon-text"><Phone size={14} /> {p.phone}</a> : <span className="muted">Not provided</span>}</dd>
             <dt>Date of birth</dt>
             <dd>{p.date_of_birth ? <>{formatDate(p.date_of_birth, { day: 'numeric', month: 'long', year: 'numeric' })} <span className="muted">({age(p.date_of_birth)})</span></> : <span className="muted">Not provided</span>}</dd>
-            <dt>Position</dt>
+            <dt>Role</dt>
             <dd>{p.position}</dd>
             <dt>Date joined</dt>
             <dd>{formatDate(p.date_joined, { day: 'numeric', month: 'long', year: 'numeric' })}</dd>
@@ -112,18 +114,18 @@ export default function ParticipantProfile() {
 
         <div className="stack">
           <div className="kpis kpis-5">
-            <div className="kpi"><span className="kpi-label">Meetings invited</span><span className="kpi-value">{summary.invited}</span><span className="kpi-sub">Held meetings</span></div>
+            <div className="kpi"><span className="kpi-label">{t.Events} invited</span><span className="kpi-value">{summary.invited}</span><span className="kpi-sub">Held {t.events}</span></div>
             <div className="kpi"><span className="kpi-label">Attended</span><span className="kpi-value">{summary.attended}</span><span className="kpi-sub">Incl. late / online</span></div>
             <div className="kpi"><span className="kpi-label">Absences</span><span className="kpi-value">{summary.absent}</span><span className="kpi-sub">Without apology</span></div>
             <div className="kpi"><span className="kpi-label">Apologies</span><span className="kpi-value">{summary.apology}</span><span className="kpi-sub">Received</span></div>
-            <div className="kpi"><span className="kpi-label">Attendance rate</span><span className="kpi-value">{formatRate(summary.rate)}</span><span className="kpi-sub">{summary.unrecorded ? `${summary.unrecorded} not recorded` : 'Of recorded meetings'}</span></div>
+            <div className="kpi"><span className="kpi-label">Attendance rate</span><span className="kpi-value">{formatRate(summary.rate)}</span><span className="kpi-sub">{summary.unrecorded ? `${summary.unrecorded} not recorded` : `Of recorded ${t.events}`}</span></div>
           </div>
 
           <Panel title="Attendance trend">
-            <RateLineChart points={chart.points} height={200} emptyText="No attendance has been recorded for this participant yet." />
+            <RateLineChart points={chart.points} height={200} emptyText={`No attendance has been recorded for this ${t.participant} yet.`} />
             {chart.strip.length > 0 && (
               <div className="trend-foot">
-                <span className="muted small">Each square is a meeting (oldest → newest). Line shows the rolling rate over the last four meetings.</span>
+                <span className="muted small">Each square is a {t.event} (oldest → newest). Line shows the rolling rate over the last four {t.events}.</span>
                 <AttendanceStrip items={chart.strip} />
               </div>
             )}
@@ -133,30 +135,30 @@ export default function ParticipantProfile() {
       </div>
 
       {upcoming.length > 0 && (
-        <Panel title="Upcoming meetings" flush>
-          <HistoryTable rows={upcoming} />
+        <Panel title={`Upcoming ${t.events}`} flush>
+          <HistoryTable rows={upcoming} t={t} />
         </Panel>
       )}
 
       <Panel title="Attendance history" flush>
         {history.filter((h) => h.held || h.meeting_status === 'cancelled').length === 0 ? (
-          <EmptyState title="No meeting history yet">Attendance will appear here once this participant is invited to a meeting that has been held.</EmptyState>
+          <EmptyState title="No attendance history yet">Attendance will appear here once this {t.participant} is invited to a {t.event} that has been held.</EmptyState>
         ) : (
-          <HistoryTable rows={history.filter((h) => h.held || h.meeting_status === 'cancelled')} />
+          <HistoryTable rows={history.filter((h) => h.held || h.meeting_status === 'cancelled')} t={t} />
         )}
       </Panel>
     </>
   );
 }
 
-function HistoryTable({ rows }) {
+function HistoryTable({ rows, t }) {
   return (
     <div className="table-wrap">
       <table className="table">
         <thead>
           <tr>
             <th>Date</th>
-            <th>Meeting</th>
+            <th>{t.Event}</th>
             <th className="hide-md">Time</th>
             <th>Attendance</th>
             <th className="hide-sm">Notes</th>

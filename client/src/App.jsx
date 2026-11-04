@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api, setUnauthorizedHandler } from './lib/api';
 import { FeedbackProvider } from './components/Feedback';
+import { SettingsProvider } from './lib/settings';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -50,6 +51,7 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
+      <SettingsProvider enabled={Boolean(user)}>
       <FeedbackProvider>
         <BrowserRouter>
           <Routes>
@@ -71,6 +73,7 @@ export default function App() {
           </Routes>
         </BrowserRouter>
       </FeedbackProvider>
+      </SettingsProvider>
     </AuthContext.Provider>
   );
 }

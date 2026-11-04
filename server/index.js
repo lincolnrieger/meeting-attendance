@@ -12,7 +12,9 @@ const { createApp } = require('./app');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = Number(process.env.PORT) || 3001;
-const DB_PATH = process.env.DB_PATH || path.join(ROOT, 'data', 'board-attendance.db');
+// Databases created by earlier versions used the name board-attendance.db.
+const LEGACY_DB = path.join(ROOT, 'data', 'board-attendance.db');
+const DB_PATH = process.env.DB_PATH || (fs.existsSync(LEGACY_DB) ? LEGACY_DB : path.join(ROOT, 'data', 'attendance.db'));
 
 const db = createNodeDatabase(DB_PATH);
 const config = {
@@ -33,7 +35,7 @@ if (fs.existsSync(dist)) {
 }
 
 const server = serve({ fetch: app.fetch, port: PORT }, () => {
-  console.log(`Board attendance server listening on http://localhost:${PORT}`);
+  console.log(`Attendance register listening on http://localhost:${PORT}`);
 });
 
 function shutdown() {

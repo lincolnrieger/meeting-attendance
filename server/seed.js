@@ -3,7 +3,7 @@
  *
  * Everything created here is FICTIONAL and flagged with `is_sample = 1` so it
  * can be identified in the interface and removed in one step from
- * Settings → Sample data. Meeting dates are generated relative to the date the
+ * Settings → Sample data. The scenario is a fictional community group. Meeting dates are generated relative to the date the
  * database is first created, so there are always past and upcoming meetings.
  *
  * A seeded pseudo-random generator is used so the data is the same each time.
@@ -16,56 +16,56 @@ const SAMPLE_NOTE = 'SAMPLE PROFILE — fictional demonstration data. Replace wi
 // reliability = probability of attending a held meeting.
 // joinedMonthsAgo / leftMonthsAgo control which meetings they are invited to.
 const PEOPLE = [
-  { first: 'Margaret', last: 'Thompson', dob: '1958-03-14', phone: '0412 384 905', position: 'Chair', joined: '2015-07-01', rel: 0.98, note: 'Chairs the board and the Nominations Committee.' },
-  { first: 'David', last: 'Nguyen', dob: '1969-11-02', phone: '0423 117 642', position: 'Deputy Chair', joined: '2017-02-15', rel: 0.94 },
-  { first: 'Priya', last: 'Raman', dob: '1976-06-21', phone: '0401 552 870', position: 'Treasurer', joined: '2019-08-01', rel: 0.92, note: 'Chartered accountant (CA ANZ).' },
-  { first: 'James', last: "O'Connor", dob: '1972-01-30', phone: '0438 902 116', position: 'Company Secretary', joined: '2018-03-12', rel: 0.99 },
-  { first: 'Sarah', last: 'Mitchell', dob: '1974-09-08', phone: '0419 667 203', position: 'Chief Executive Officer (ex officio)', joined: '2020-01-20', rel: 0.96 },
-  { first: 'Robert', last: 'Kelly', dob: '1963-04-17', phone: '0407 225 981', position: 'Chair, Audit & Risk Committee', joined: '2016-10-05', rel: 0.9 },
-  { first: 'Hannah', last: 'Brooks', dob: '1980-12-03', phone: null, position: 'Chair, People & Culture Committee', joined: '2021-05-10', rel: 0.84 },
-  { first: 'Liam', last: 'Walsh', dob: '1982-07-26', phone: '0450 318 774', position: 'Non-Executive Director', joined: '2022-02-01', rel: 0.8 },
-  { first: 'Chloe', last: 'Anderson', dob: '1985-02-11', phone: '0466 041 239', position: 'Non-Executive Director', joined: '2021-11-15', rel: 0.87 },
-  { first: 'Thomas', last: 'Papadopoulos', dob: '1967-08-19', phone: '0414 780 362', position: 'Non-Executive Director', joined: '2019-03-04', rel: 0.88 },
-  { first: 'Emma', last: 'Wilson', dob: '1978-05-29', phone: null, position: 'Non-Executive Director', joined: '2020-09-14', rel: 0.72, note: 'Based in Perth — often attends online.' , online: 0.45 },
-  { first: 'Benjamin', last: 'Clarke', dob: '1971-10-07', phone: '0432 556 018', position: 'Non-Executive Director', joined: '2018-06-25', rel: 0.6 },
-  { first: 'Daniel', last: 'Morgan', dob: '1966-01-23', phone: '0409 873 451', position: 'Independent Director', joined: '2017-09-01', rel: 0.93 },
-  { first: 'Andrew', last: 'Fraser', dob: '1979-03-31', phone: '0421 964 307', position: 'Independent Director', joined: '2022-08-08', rel: 0.76 },
-  { first: 'Olivia', last: 'Campbell', dob: '1990-11-16', phone: '0455 209 684', position: 'Board Observer', joinedMonthsAgo: 8, rel: 0.68, note: 'Participating through the Emerging Directors program.' },
-  { first: 'Jessica', last: 'Tran', dob: '1987-04-04', phone: '0478 330 512', position: 'Non-Executive Director', joinedMonthsAgo: 5, rel: 0.9 },
-  { first: 'Aisha', last: 'Rahman', dob: '1983-09-12', phone: '0490 115 763', position: 'Non-Executive Director', joinedMonthsAgo: 1, rel: 0.9, note: 'Newly appointed — induction scheduled.' },
-  { first: 'Michael', last: 'Harris', dob: '1955-12-28', phone: '0418 442 097', position: 'Non-Executive Director', joined: '2014-04-01', leftMonthsAgo: 4, rel: 0.82, status: 'inactive', note: 'Retired from the board at the end of his term.' },
-  { first: 'Grace', last: 'Sullivan', dob: '1975-06-09', phone: null, position: 'Non-Executive Director', joined: '2019-11-11', leftMonthsAgo: 7, rel: 0.7, status: 'inactive', note: 'Resigned due to other commitments.' },
+  { first: 'Margaret', last: 'Thompson', dob: '1958-03-14', phone: '0412 384 905', position: 'Coordinator', joined: '2015-07-01', rel: 0.98, note: 'Founding member; runs the monthly meetings.' },
+  { first: 'David', last: 'Nguyen', dob: '1969-11-02', phone: '0423 117 642', position: 'Assistant Coordinator', joined: '2017-02-15', rel: 0.94 },
+  { first: 'Priya', last: 'Raman', dob: '1976-06-21', phone: '0401 552 870', position: 'Treasurer', joined: '2019-08-01', rel: 0.92, note: 'Looks after membership fees and the group account.' },
+  { first: 'James', last: "O'Connor", dob: '1972-01-30', phone: '0438 902 116', position: 'Secretary', joined: '2018-03-12', rel: 0.99 },
+  { first: 'Sarah', last: 'Mitchell', dob: '1974-09-08', phone: '0419 667 203', position: 'Program Leader', joined: '2020-01-20', rel: 0.96 },
+  { first: 'Robert', last: 'Kelly', dob: '1963-04-17', phone: '0407 225 981', position: 'Committee Member', joined: '2016-10-05', rel: 0.9 },
+  { first: 'Hannah', last: 'Brooks', dob: '1980-12-03', phone: null, position: 'Volunteer Coordinator', joined: '2021-05-10', rel: 0.84 },
+  { first: 'Liam', last: 'Walsh', dob: '1982-07-26', phone: '0450 318 774', position: 'Volunteer', joined: '2022-02-01', rel: 0.8 },
+  { first: 'Chloe', last: 'Anderson', dob: '1985-02-11', phone: '0466 041 239', position: 'Volunteer', joined: '2021-11-15', rel: 0.87 },
+  { first: 'Thomas', last: 'Papadopoulos', dob: '1967-08-19', phone: '0414 780 362', position: 'Member', joined: '2019-03-04', rel: 0.88 },
+  { first: 'Emma', last: 'Wilson', dob: '1978-05-29', phone: null, position: 'Member', joined: '2020-09-14', rel: 0.72, note: 'Works shifts — often joins online.' , online: 0.45 },
+  { first: 'Benjamin', last: 'Clarke', dob: '1971-10-07', phone: '0432 556 018', position: 'Member', joined: '2018-06-25', rel: 0.6 },
+  { first: 'Daniel', last: 'Morgan', dob: '1966-01-23', phone: '0409 873 451', position: 'Committee Member', joined: '2017-09-01', rel: 0.93 },
+  { first: 'Andrew', last: 'Fraser', dob: '1979-03-31', phone: '0421 964 307', position: 'Committee Member', joined: '2022-08-08', rel: 0.76 },
+  { first: 'Olivia', last: 'Campbell', dob: '1990-11-16', phone: '0455 209 684', position: 'Guest', joinedMonthsAgo: 8, rel: 0.68, note: 'Attending as a guest before deciding whether to join.' },
+  { first: 'Jessica', last: 'Tran', dob: '1987-04-04', phone: '0478 330 512', position: 'Member', joinedMonthsAgo: 5, rel: 0.9 },
+  { first: 'Aisha', last: 'Rahman', dob: '1983-09-12', phone: '0490 115 763', position: 'Member', joinedMonthsAgo: 1, rel: 0.9, note: 'New member — welcome pack sent.' },
+  { first: 'Michael', last: 'Harris', dob: '1955-12-28', phone: '0418 442 097', position: 'Member', joined: '2014-04-01', leftMonthsAgo: 4, rel: 0.82, status: 'inactive', note: 'Moved interstate.' },
+  { first: 'Grace', last: 'Sullivan', dob: '1975-06-09', phone: null, position: 'Member', joined: '2019-11-11', leftMonthsAgo: 7, rel: 0.7, status: 'inactive', note: 'Resigned due to other commitments.' },
 ];
 
-const AUDIT_COMMITTEE = ['Kelly', 'Raman', "O'Connor", 'Mitchell', 'Fraser', 'Morgan'];
+const COMMITTEE = ['Thompson', 'Nguyen', 'Raman', "O'Connor", 'Kelly', 'Morgan', 'Fraser'];
 
-const BOARD_AGENDA = `1. Welcome, apologies and declarations of interest
-2. Minutes of the previous meeting and action items
-3. CEO report
-4. Finance report and management accounts
-5. Risk register review
-6. Committee reports
-7. General business
-8. Meeting close`;
+const VENUE = 'Riverside Community Centre';
 
-const AUDIT_AGENDA = `1. Apologies and conflicts of interest
-2. Internal audit program update
-3. External auditor report
-4. Risk register and incident review
-5. Compliance and policy updates
-6. Other business`;
+const GENERAL_AGENDA = `1. Welcome and apologies
+2. Notes from the previous meeting
+3. Coordinator's update
+4. Treasurer's report
+5. Upcoming activities and volunteer roster
+6. General business
+7. Close`;
 
-const STRATEGY_AGENDA = `Full-day planning session to review the three-year strategic plan.
-- Morning: environmental scan and performance against current plan
-- Afternoon: priorities, investment options and measures of success
-Lunch provided.`;
+const COMMITTEE_AGENDA = `1. Apologies
+2. Action items from the last committee meeting
+3. Finances and budget
+4. Planning for the coming quarter
+5. Other business`;
+
+const WORKSHOP_AGENDA = `Half-day skills workshop for members and volunteers.
+- First aid refresher
+- Event planning and safety
+Morning tea provided.`;
 
 const AGM_AGENDA = `1. Opening and confirmation of quorum
 2. Minutes of the previous Annual General Meeting
-3. Chair's address
-4. Presentation of the annual financial report
-5. Election of directors
-6. Appointment of auditor
+3. Coordinator's annual report
+4. Treasurer's annual report
+5. Election of office bearers
+6. General business
 7. Close`;
 
 // ---- helpers ---------------------------------------------------------------
@@ -144,41 +144,41 @@ async function seedSampleData(db) {
   const meetings = [];
   for (let k = -12; k <= 2; k++) {
     const { y, m } = addMonths(now.y, now.m, k);
-    if (m === 1) continue; // no board meeting in January
+    if (m === 1) continue; // no general meeting in January
     const date = nthWeekday(y, m, 3, 3); // third Wednesday
     const videoConf = k === -9;
     meetings.push({
-      title: `Board Meeting — ${MONTHS[m - 1]} ${y}`,
+      title: `General Meeting — ${MONTHS[m - 1]} ${y}`,
       date,
       start: '17:30',
       end: '19:30',
-      location: videoConf ? 'Video conference (Microsoft Teams)' : 'Boardroom, Level 4, 120 Collins Street, Melbourne',
-      agenda: BOARD_AGENDA,
+      location: videoConf ? 'Online (video call)' : `Main Hall, ${VENUE}`,
+      agenda: GENERAL_AGENDA,
       cancelled: k === -6,
       online: videoConf,
     });
     if (m % 3 === 2) {
-      // Audit & Risk Committee in Feb, May, Aug, Nov (first Tuesday)
+      // Committee meeting in Feb, May, Aug, Nov (first Tuesday)
       meetings.push({
-        title: `Audit & Risk Committee — ${MONTHS[m - 1]} ${y}`,
+        title: `Committee Meeting — ${MONTHS[m - 1]} ${y}`,
         date: nthWeekday(y, m, 2, 1),
-        start: '16:00',
-        end: '17:30',
-        location: 'Meeting Room 2, Level 4',
-        agenda: AUDIT_AGENDA,
-        invite: (p) => AUDIT_COMMITTEE.includes(p.last),
+        start: '18:00',
+        end: '19:30',
+        location: `Meeting Room 2, ${VENUE}`,
+        agenda: COMMITTEE_AGENDA,
+        invite: (p) => COMMITTEE.includes(p.last),
       });
     }
   }
   {
     const { y, m } = addMonths(now.y, now.m, -5);
     meetings.push({
-      title: 'Strategic Planning Day',
-      date: nthWeekday(y, m, 5, 2), // second Friday
+      title: 'Skills Workshop',
+      date: nthWeekday(y, m, 6, 2), // second Saturday
       start: '09:00',
-      end: '16:00',
-      location: 'Function Room 2, Rydges Hotel, Melbourne',
-      agenda: STRATEGY_AGENDA,
+      end: '12:30',
+      location: `Meeting Room 2, ${VENUE}`,
+      agenda: WORKSHOP_AGENDA,
     });
     const next = addMonths(now.y, now.m, 1);
     meetings.push({
@@ -186,15 +186,15 @@ async function seedSampleData(db) {
       date: nthWeekday(next.y, next.m, 4, 1), // first Thursday next month
       start: '18:00',
       end: '19:30',
-      location: 'Auditorium, Ground Floor, 120 Collins Street, Melbourne',
+      location: `Main Hall, ${VENUE}`,
       agenda: AGM_AGENDA,
     });
   }
   meetings.sort((a, b) => a.date.localeCompare(b.date));
 
-  const pastBoard = meetings.filter((m) => m.date < t && !m.cancelled && m.title.startsWith('Board'));
-  const latestPast = pastBoard[pastBoard.length - 1];
-  const firstUpcomingBoard = meetings.find((m) => m.date >= t && m.title.startsWith('Board'));
+  const pastGeneral = meetings.filter((m) => m.date < t && !m.cancelled && m.title.startsWith('General'));
+  const latestPast = pastGeneral[pastGeneral.length - 1];
+  const firstUpcomingGeneral = meetings.find((m) => m.date >= t && m.title.startsWith('General'));
 
   for (const m of meetings) {
     const past = m.date < t;
@@ -223,7 +223,7 @@ async function seedSampleData(db) {
           st = rand() < 0.68 ? 'apology' : 'absent';
           if (st === 'apology') note = ['Travelling interstate.', 'Unwell.', 'Prior work commitment.', 'Family commitment.'][Math.floor(rand() * 4)];
         }
-      } else if (m === firstUpcomingBoard && p.last === 'Clarke') {
+      } else if (m === firstUpcomingGeneral && p.last === 'Clarke') {
         st = 'apology';
         note = 'Overseas — apology sent in advance.';
       }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { initials } from '../lib/settings';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { ErrorNotice } from '../components/ui';
@@ -13,9 +14,13 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [defaultCreds, setDefaultCreds] = useState(false);
+  const [org, setOrg] = useState('Attendance Register');
 
   useEffect(() => {
-    api.get('/auth/setup').then((d) => setDefaultCreds(d.defaultCredentials)).catch(() => {});
+    api.get('/auth/setup').then((d) => {
+      setDefaultCreds(d.defaultCredentials);
+      if (d.organisation_name) setOrg(d.organisation_name);
+    }).catch(() => {});
   }, []);
 
   async function submit(e) {
@@ -35,10 +40,10 @@ export default function Login() {
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
         <div className="brand brand-light">
-          <span className="brand-mark" aria-hidden="true">BR</span>
+          <span className="brand-mark" aria-hidden="true">{initials(org)}</span>
           <div>
-            <div className="brand-name">Board Register</div>
-            <div className="brand-sub">Attendance management</div>
+            <div className="brand-name">{org}</div>
+            <div className="brand-sub">Attendance register</div>
           </div>
         </div>
         <h1>Administrator sign in</h1>

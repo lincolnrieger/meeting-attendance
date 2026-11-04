@@ -1,5 +1,5 @@
 /**
- * /api/participants — board member management and individual attendance records.
+ * /api/participants — participant management and individual attendance records.
  */
 const { Hono } = require('hono');
 const { validateParticipant, assertValid, HttpError, ValidationError } = require('../validation');

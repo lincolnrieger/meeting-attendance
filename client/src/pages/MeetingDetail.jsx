@@ -10,6 +10,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Ban, Calendar, CheckCheck, CheckCircle2, Clock, Copy, Download, Loader2, MapPin, Pencil, RotateCcw, Search, Trash2, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/useApi';
+import { useAppSettings } from '../lib/settings';
 import { formatRate, STATUSES, statusLabel } from '../lib/attendance';
 import { downloadCSV } from '../lib/csv';
 import { formatDateLong, formatTimeRange, fullName } from '../lib/format';
@@ -22,6 +23,7 @@ export default function MeetingDetail() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const toast = useToast();
+  const { t } = useAppSettings();
 
   if (error) return <ErrorNotice error={error} />;
   if (loading && !data) return <Loading />;
@@ -31,7 +33,7 @@ export default function MeetingDetail() {
     if (!(await confirm({ title, message, confirmLabel: label, danger }))) return;
     try {
       await api.patch(`/meetings/${m.id}/status`, { status });
-      toast(`Meeting marked ${status}.`);
+      toast(`${t.Event} marked ${status}.`);
       reload();
     } catch (e) {
       toast(e.message, 'error');
@@ -40,15 +42,15 @@ export default function MeetingDetail() {
 
   async function remove() {
     const ok = await confirm({
-      title: 'Delete meeting',
-      message: `Permanently delete "${m.title}" and all ${data.attendees.length} attendance records? This cannot be undone. To keep a record that it didn't go ahead, cancel the meeting instead.`,
-      confirmLabel: 'Delete meeting',
+      title: `Delete ${t.event}`,
+      message: `Permanently delete "${m.title}" and all ${data.attendees.length} attendance records? This cannot be undone. To keep a record that it didn't go ahead, cancel the ${t.event} instead.`,
+      confirmLabel: `Delete ${t.event}`,
       danger: true,
     });
     if (!ok) return;
     try {
       await api.del(`/meetings/${m.id}`);
-      toast('Meeting deleted.');
+      toast(`${t.Event} deleted.`);
       navigate('/meetings');
     } catch (e) {
       toast(e.message, 'error');
@@ -60,7 +62,7 @@ export default function MeetingDetail() {
   return (
     <>
       <PageHeader
-        breadcrumb={<Link to="/meetings">Meetings</Link>}
+        breadcrumb={<Link to="/meetings">{t.Events}</Link>}
         title={<>{m.title} {m.is_sample ? <SampleTag /> : null}</>}
         actions={
           <>
@@ -68,27 +70,27 @@ export default function MeetingDetail() {
             <Link to={`/meetings/new?duplicate=${m.id}`} className="btn"><Copy size={16} /> Duplicate</Link>
             {m.status === 'upcoming' && (
               <button className="btn" onClick={() => setStatus('completed', {
-                title: 'Mark meeting as completed',
-                message: unrecorded ? `${unrecorded} participant${unrecorded === 1 ? ' still has' : 's still have'} no attendance recorded. You can still record it after completing the meeting.` : 'The meeting will be counted in attendance statistics.',
+                title: `Mark ${t.event} as completed`,
+                message: unrecorded ? `${unrecorded} ${unrecorded === 1 ? `${t.participant} still has` : `${t.participants} still have`} no attendance recorded. You can still record it after completing the ${t.event}.` : `The ${t.event} will be counted in attendance statistics.`,
                 label: 'Mark completed',
               })}><CheckCircle2 size={16} /> Mark completed</button>
             )}
             {m.status !== 'cancelled' ? (
               <button className="btn" onClick={() => setStatus('cancelled', {
-                title: 'Cancel meeting',
-                message: 'The meeting will be marked as cancelled and excluded from attendance statistics. Recorded attendance is kept and the meeting can be reinstated later.',
-                label: 'Cancel meeting',
+                title: `Cancel ${t.event}`,
+                message: `The ${t.event} will be marked as cancelled and excluded from attendance statistics. Recorded attendance is kept and the ${t.event} can be reinstated later.`,
+                label: `Cancel ${t.event}`,
                 danger: true,
-              })}><Ban size={16} /> Cancel meeting</button>
+              })}><Ban size={16} /> Cancel {t.event}</button>
             ) : (
-              <button className="btn" onClick={() => setStatus('upcoming', { title: 'Reinstate meeting', message: 'The meeting will be restored with the status Upcoming.', label: 'Reinstate' })}>
+              <button className="btn" onClick={() => setStatus('upcoming', { title: `Reinstate ${t.event}`, message: `The ${t.event} will be restored with the status Upcoming.`, label: 'Reinstate' })}>
                 <RotateCcw size={16} /> Reinstate
               </button>
             )}
             {m.status === 'completed' && (
-              <button className="btn btn-ghost" onClick={() => setStatus('upcoming', { title: 'Reopen meeting', message: 'Set the status back to Upcoming?', label: 'Reopen' })}>Reopen</button>
+              <button className="btn btn-ghost" onClick={() => setStatus('upcoming', { title: `Reopen ${t.event}`, message: 'Set the status back to Upcoming?', label: 'Reopen' })}>Reopen</button>
             )}
-            <button className="icon-btn danger" title="Delete meeting" aria-label="Delete meeting" onClick={remove}><Trash2 size={17} /></button>
+            <button className="icon-btn danger" title={`Delete ${t.event}`} aria-label={`Delete ${t.event}`} onClick={remove}><Trash2 size={17} /></button>
           </>
         }
       />
@@ -101,10 +103,10 @@ export default function MeetingDetail() {
         <span className="icon-text"><Users size={15} /> {data.attendees.length} invited</span>
       </div>
 
-      {m.status === 'cancelled' && <div className="notice notice-warn"><Ban size={16} /> This meeting was cancelled. Attendance can't be changed unless the meeting is reinstated.</div>}
+      {m.status === 'cancelled' && <div className="notice notice-warn"><Ban size={16} /> This {t.event} was cancelled. Attendance can't be changed unless the {t.event} is reinstated.</div>}
 
       <div className="detail-grid">
-        <Register meetingData={data} setData={setData} />
+        <Register meetingData={data} setData={setData} t={t} />
         <Panel title="Agenda" className="agenda-panel">
           {m.description ? <div className="pre agenda">{m.description}</div> : <p className="muted">No agenda has been added. <Link to={`/meetings/${m.id}/edit`} className="link">Add one</Link></p>}
         </Panel>
@@ -113,7 +115,7 @@ export default function MeetingDetail() {
   );
 }
 
-function Register({ meetingData, setData }) {
+function Register({ meetingData, setData, t }) {
   const { meeting: m, attendees, summary } = meetingData;
   const [params, setParams] = useSearchParams();
   const filter = params.get('filter') || 'all';
@@ -151,7 +153,7 @@ function Register({ meetingData, setData }) {
     if (!onlyUnrecorded && overwriting) {
       const ok = await confirm({
         title: 'Mark everyone present?',
-        message: `${overwriting} participant${overwriting === 1 ? ' has' : 's have'} a different status recorded (e.g. apology or absent). Marking everyone present will replace ${overwriting === 1 ? 'it' : 'them'}.`,
+        message: `${overwriting} ${overwriting === 1 ? `${t.participant} has` : `${t.participants} have`} a different status recorded (e.g. apology or absent). Marking everyone present will replace ${overwriting === 1 ? 'it' : 'them'}.`,
         confirmLabel: 'Mark all present',
       });
       if (!ok) return;
@@ -165,7 +167,7 @@ function Register({ meetingData, setData }) {
         attendees: d.attendees.map((a) => (!onlyUnrecorded || !a.status ? { ...a, status: 'present' } : a)),
       }));
       setLastSaved(new Date());
-      toast(`${res.updated} participant${res.updated === 1 ? '' : 's'} marked present.`);
+      toast(`${res.updated} ${res.updated === 1 ? t.participant : t.participants} marked present.`);
     } catch (e) {
       toast(e.message, 'error');
     } finally {
@@ -177,7 +179,7 @@ function Register({ meetingData, setData }) {
     downloadCSV(`attendance-${m.date}-${m.title}.csv`.toLowerCase().replace(/[^a-z0-9.-]+/g, '-'), attendees, [
       { value: (a) => a.first_name, label: 'First name' },
       { value: (a) => a.last_name, label: 'Last name' },
-      { key: 'position', label: 'Position' },
+      { key: 'position', label: 'Role' },
       { key: 'email', label: 'Email' },
       { value: (a) => statusLabel(a.status), label: 'Attendance' },
       { key: 'notes', label: 'Notes' },
@@ -214,17 +216,17 @@ function Register({ meetingData, setData }) {
           </div>
           <div className="search search-sm">
             <Search size={15} />
-            <input className="input" type="search" placeholder="Find" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Find participant" />
+            <input className="input" type="search" placeholder="Find" value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Find ${t.participant}`} />
           </div>
         </div>
       )}
 
       {attendees.length === 0 ? (
-        <EmptyState icon={Users} title="No participants invited">
-          <Link to={`/meetings/${m.id}/edit`} className="link">Add participants to this meeting</Link>
+        <EmptyState icon={Users} title={`No ${t.participants} invited`}>
+          <Link to={`/meetings/${m.id}/edit`} className="link">Add {t.participants} to this {t.event}</Link>
         </EmptyState>
       ) : rows.length === 0 ? (
-        <EmptyState icon={CheckCircle2} title={filter === 'unrecorded' ? 'Everyone has attendance recorded' : 'No participants match'} />
+        <EmptyState icon={CheckCircle2} title={filter === 'unrecorded' ? 'Everyone has attendance recorded' : `No ${t.participants} match`} />
       ) : (
         <ul className="register-list">
           {rows.map((a) => (

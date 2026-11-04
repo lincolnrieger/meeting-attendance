@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowDown, ArrowUp, BarChart3, Download } from 'lucide-react';
 import { useApi } from '../lib/useApi';
+import { useAppSettings } from '../lib/settings';
 import { qs } from '../lib/api';
 import { formatRate } from '../lib/attendance';
 import { downloadCSV } from '../lib/csv';
@@ -45,6 +46,7 @@ export default function Reports() {
   const tab = params.get('view') || 'overview';
   const range = preset === 'custom' ? { from: params.get('from') || '', to: params.get('to') || '' } : PRESETS[preset].range();
   const { data, error, loading } = useApi(`/reports${qs(range)}`);
+  const { t } = useAppSettings();
 
   const update = (changes) => {
     const next = new URLSearchParams(params);
@@ -57,7 +59,7 @@ export default function Reports() {
 
   return (
     <>
-      <PageHeader title="Reports" subtitle={`Attendance statistics for meetings held · ${rangeLabel}`} />
+      <PageHeader title="Reports" subtitle={`Attendance statistics for ${t.events} held · ${rangeLabel}`} />
 
       <div className="toolbar report-filters">
         <div className="field-inline">
@@ -79,7 +81,7 @@ export default function Reports() {
           <input id="to" type="date" className="input" value={range.to} onChange={(e) => update({ range: 'custom', from: range.from, to: e.target.value })} />
         </div>
         <div className="tabs ml-auto" role="tablist">
-          {[['overview', 'Overview'], ['members', 'By member'], ['meetings', 'By meeting']].map(([k, l]) => (
+          {[['overview', 'Overview'], ['members', `By ${t.participant}`], ['meetings', `By ${t.event}`]].map(([k, l]) => (
             <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => update({ view: k === 'overview' ? '' : k })}>{l}</button>
           ))}
         </div>
@@ -89,7 +91,7 @@ export default function Reports() {
       {loading && !data ? (
         <Loading />
       ) : !data ? null : data.summary.meetings === 0 ? (
-        <div className="panel"><EmptyState icon={BarChart3} title="No meetings were held in this period">Try a wider date range.</EmptyState></div>
+        <div className="panel"><EmptyState icon={BarChart3} title={`No ${t.events} were held in this period`}>Try a wider date range.</EmptyState></div>
       ) : tab === 'members' ? (
         <MemberReport rows={data.byMember} fileSuffix={fileSuffix} />
       ) : tab === 'meetings' ? (
@@ -102,6 +104,7 @@ export default function Reports() {
 }
 
 function Overview({ data, fileSuffix }) {
+  const { t } = useAppSettings();
   const { summary, trend, byMember } = data;
   const ranked = byMember.filter((m) => m.recorded >= 2 && m.rate != null);
   const top = [...ranked].sort((a, b) => b.rate - a.rate || b.attended - a.attended).slice(0, 5);
@@ -110,22 +113,22 @@ function Overview({ data, fileSuffix }) {
 
   function exportOverview() {
     downloadCSV(`attendance-summary-${fileSuffix}.csv`, [
-      { metric: 'Meetings held', value: summary.meetings },
-      { metric: 'Meetings cancelled', value: summary.cancelled },
+      { metric: `${t.Events} held`, value: summary.meetings },
+      { metric: `${t.Events} cancelled`, value: summary.cancelled },
       ...CSV_STATS.map((c) => ({ metric: c.label, value: c.value ? c.value(summary) : summary[c.key] })),
     ], [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }]);
   }
 
   function exportTrend() {
-    downloadCSV(`attendance-trend-${fileSuffix}.csv`, trend, [{ key: 'month', label: 'Month' }, { key: 'meetings', label: 'Meetings' }, ...CSV_STATS]);
+    downloadCSV(`attendance-trend-${fileSuffix}.csv`, trend, [{ key: 'month', label: 'Month' }, { key: 'meetings', label: t.Events }, ...CSV_STATS]);
   }
 
   return (
     <>
       <div className="kpis">
-        <div className="kpi"><span className="kpi-label">Meetings held</span><span className="kpi-value">{summary.meetings}</span><span className="kpi-sub">{summary.cancelled} cancelled</span></div>
+        <div className="kpi"><span className="kpi-label">{t.Events} held</span><span className="kpi-value">{summary.meetings}</span><span className="kpi-sub">{summary.cancelled} cancelled</span></div>
         <div className="kpi"><span className="kpi-label">Overall attendance</span><span className="kpi-value">{formatRate(summary.rate)}</span><span className="kpi-sub">{summary.attended} of {summary.recorded} records</span></div>
-        <div className="kpi"><span className="kpi-label">Average per meeting</span><span className="kpi-value">{(summary.attended / summary.meetings).toFixed(1)}</span><span className="kpi-sub">attendees</span></div>
+        <div className="kpi"><span className="kpi-label">Average per {t.event}</span><span className="kpi-value">{(summary.attended / summary.meetings).toFixed(1)}</span><span className="kpi-sub">attendees</span></div>
         <div className="kpi"><span className="kpi-label">Apologies</span><span className="kpi-value">{summary.apology}</span><span className="kpi-sub">{pctOf(summary.apology)} of records</span></div>
         <div className="kpi"><span className="kpi-label">Absences</span><span className="kpi-value">{summary.absent}</span><span className="kpi-sub">{pctOf(summary.absent)} without apology</span></div>
         <div className="kpi"><span className="kpi-label">Not recorded</span><span className={`kpi-value ${summary.unrecorded ? 'warn' : ''}`}>{summary.unrecorded}</span><span className="kpi-sub">Outstanding entries</span></div>
@@ -133,7 +136,7 @@ function Overview({ data, fileSuffix }) {
 
       <div className="grid-2 grid-wide-left">
         <Panel title="Attendance trend by month" actions={<button className="btn btn-sm btn-ghost" onClick={exportTrend}><Download size={15} /> CSV</button>}>
-          <RateLineChart points={trend.map((t) => ({ label: formatMonth(t.month), value: t.rate, tooltip: `${formatMonth(t.month)}: ${formatRate(t.rate)} (${t.attended}/${t.recorded}, ${t.meetings} meeting${t.meetings === 1 ? '' : 's'})` }))} />
+          <RateLineChart points={trend.map((tr) => ({ label: formatMonth(tr.month), value: tr.rate, tooltip: `${formatMonth(tr.month)}: ${formatRate(tr.rate)} (${tr.attended}/${tr.recorded}, ${tr.meetings} ${tr.meetings === 1 ? t.event : t.events})` }))} />
         </Panel>
         <Panel title="Absence and apology statistics" actions={<button className="btn btn-sm btn-ghost" onClick={exportOverview}><Download size={15} /> CSV</button>}>
           <StatusBreakdown summary={summary} showLegend={false} />
@@ -160,11 +163,12 @@ function Overview({ data, fileSuffix }) {
 }
 
 function RankPanel({ title, rows }) {
+  const { t } = useAppSettings();
   return (
     <Panel title={title} flush>
       {rows.length === 0 ? <EmptyState title="Not enough data" /> : (
         <table className="table">
-          <thead><tr><th>Member</th><th className="num">Attended</th><th className="num hide-sm">Apol.</th><th className="num hide-sm">Absent</th><th className="rate-col">Rate</th></tr></thead>
+          <thead><tr><th>{t.Participant}</th><th className="num">Attended</th><th className="num hide-sm">Apol.</th><th className="num hide-sm">Absent</th><th className="rate-col">Rate</th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
@@ -178,7 +182,7 @@ function RankPanel({ title, rows }) {
           </tbody>
         </table>
       )}
-      <div className="table-foot">Members with at least two recorded meetings in the period.</div>
+      <div className="table-foot">{t.Participants} with at least two recorded {t.events} in the period.</div>
     </Panel>
   );
 }
@@ -206,9 +210,10 @@ function useSort(rows, initial) {
 }
 
 function MemberReport({ rows, fileSuffix }) {
+  const { t } = useAppSettings();
   const [sorted, header] = useSort(rows, { key: 'last_name', dir: 'asc' });
   const exportCSV = () => downloadCSV(`attendance-by-member-${fileSuffix}.csv`, sorted, [
-    { key: 'first_name', label: 'First name' }, { key: 'last_name', label: 'Last name' }, { key: 'position', label: 'Position' },
+    { key: 'first_name', label: 'First name' }, { key: 'last_name', label: 'Last name' }, { key: 'position', label: 'Role' },
     { key: 'email', label: 'Email' }, { key: 'participant_status', label: 'Status' }, ...CSV_STATS,
   ]);
   return (
@@ -217,7 +222,7 @@ function MemberReport({ rows, fileSuffix }) {
         <table className="table table-hover">
           <thead>
             <tr>
-              {header('last_name', 'Member')}
+              {header('last_name', t.Participant)}
               {STAT_COLS.map((c) => header(c.key, c.label, `num ${c.hide || ''}`))}
               {header('rate', 'Rate', 'rate-col')}
             </tr>
@@ -238,18 +243,19 @@ function MemberReport({ rows, fileSuffix }) {
 }
 
 function MeetingReport({ rows, fileSuffix }) {
+  const { t } = useAppSettings();
   const [sorted, header] = useSort(rows, { key: 'date', dir: 'desc' });
   const exportCSV = () => downloadCSV(`attendance-by-meeting-${fileSuffix}.csv`, sorted, [
-    { key: 'date', label: 'Date' }, { key: 'start_time', label: 'Start' }, { key: 'title', label: 'Meeting' }, { key: 'location', label: 'Location' }, ...CSV_STATS,
+    { key: 'date', label: 'Date' }, { key: 'start_time', label: 'Start' }, { key: 'title', label: t.Event }, { key: 'location', label: 'Location' }, ...CSV_STATS,
   ]);
   return (
-    <Panel title={`Attendance by meeting (${rows.length})`} actions={<button className="btn btn-sm" onClick={exportCSV}><Download size={15} /> Export CSV</button>} flush>
+    <Panel title={`Attendance by ${t.event} (${rows.length})`} actions={<button className="btn btn-sm" onClick={exportCSV}><Download size={15} /> Export CSV</button>} flush>
       <div className="table-wrap">
         <table className="table table-hover">
           <thead>
             <tr>
               {header('date', 'Date')}
-              {header('title', 'Meeting')}
+              {header('title', t.Event)}
               {STAT_COLS.map((c) => header(c.key, c.label, `num ${c.hide || ''}`))}
               {header('rate', 'Rate', 'rate-col')}
             </tr>

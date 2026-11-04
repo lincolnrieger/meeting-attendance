@@ -8,6 +8,7 @@
  */
 const { Hono } = require('hono');
 const { HttpError, ValidationError } = require('./validation');
+const { getSettings } = require('./app-settings');
 
 const COOKIE_NAME = 'bma_session';
 const SESSION_DAYS = 14;
@@ -134,10 +135,16 @@ function authRoutes() {
   });
 
   // Whether the out-of-the-box credentials still work (shows a hint on the login page).
+  // Public details for the login page: organisation name, and whether the
+  // out-of-the-box credentials still work (to show a hint; Node only).
   app.get('/setup', async (c) => {
-    if (!c.var.config.allowDefaultPassword) return c.json({ defaultCredentials: false });
-    const user = await c.var.db.first('SELECT password_hash FROM users WHERE username = ?', [DEFAULT_USERNAME]);
-    return c.json({ defaultCredentials: Boolean(user && (await verifyPassword(DEFAULT_PASSWORD, user.password_hash))) });
+    const { organisation_name } = await getSettings(c.var.db);
+    let defaultCredentials = false;
+    if (c.var.config.allowDefaultPassword) {
+      const user = await c.var.db.first('SELECT password_hash FROM users WHERE username = ?', [DEFAULT_USERNAME]);
+      defaultCredentials = Boolean(user && (await verifyPassword(DEFAULT_PASSWORD, user.password_hash)));
+    }
+    return c.json({ defaultCredentials, organisation_name });
   });
 
   app.get('/me', requireAuth, (c) => c.json({ user: c.var.user }));

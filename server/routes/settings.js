@@ -1,8 +1,10 @@
 /**
- * /api/settings — sample data management.
+ * /api/settings — organisation settings and sample data management.
  */
 const { Hono } = require('hono');
 const { seedSampleData } = require('../seed');
+const { getSettings, saveSettings } = require('../app-settings');
+const { readJson } = require('../auth');
 
 async function counts(db) {
   return {
@@ -13,6 +15,10 @@ async function counts(db) {
 
 module.exports = function settingsRoutes() {
   const app = new Hono();
+
+  // Organisation name, terminology and form suggestion lists.
+  app.get('/app', async (c) => c.json({ settings: await getSettings(c.var.db) }));
+  app.put('/app', async (c) => c.json({ settings: await saveSettings(c.var.db, await readJson(c)) }));
 
   app.get('/sample-data', async (c) => c.json(await counts(c.var.db)));
 

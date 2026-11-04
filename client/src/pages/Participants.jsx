@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Download, FileUp, Info, Pencil, Search, Trash2, UserPlus, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/useApi';
+import { useAppSettings } from '../lib/settings';
 import { formatRate } from '../lib/attendance';
 import { downloadCSV, parseCSVObjects } from '../lib/csv';
 import { formatDate, fullName, todayISO } from '../lib/format';
@@ -15,7 +16,7 @@ const EXPORT_COLUMNS = [
   { key: 'last_name', label: 'Last name' },
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Phone' },
-  { key: 'position', label: 'Position' },
+  { key: 'position', label: 'Role' },
   { key: 'date_of_birth', label: 'Date of birth' },
   { key: 'date_joined', label: 'Date joined' },
   { key: 'status', label: 'Status' },
@@ -24,6 +25,7 @@ const EXPORT_COLUMNS = [
 
 export default function Participants() {
   const { data, error, loading, reload } = useApi('/participants');
+  const { t } = useAppSettings();
   const [params, setParams] = useSearchParams();
   const [showImport, setShowImport] = useState(false);
   const confirm = useConfirm();
@@ -58,14 +60,14 @@ export default function Participants() {
 
   async function remove(p) {
     const ok = await confirm({
-      title: 'Delete participant',
+      title: `Delete ${t.participant}`,
       message: (
         <>
           <p>Permanently delete <strong>{fullName(p)}</strong>? Their profile and all {p.invited} attendance record{p.invited === 1 ? '' : 's'} will be removed. This cannot be undone.</p>
           {p.status === 'active' && <p className="muted">To keep their history, consider editing the profile and setting the status to Inactive instead.</p>}
         </>
       ),
-      confirmLabel: 'Delete participant',
+      confirmLabel: `Delete ${t.participant}`,
       danger: true,
     });
     if (!ok) return;
@@ -79,10 +81,10 @@ export default function Participants() {
   }
 
   function exportCSV() {
-    downloadCSV(`participants-${todayISO()}.csv`, rows, [
+    downloadCSV(`${t.participants.replace(/\s+/g, '-')}-${todayISO()}.csv`, rows, [
       ...EXPORT_COLUMNS,
-      { key: 'recorded', label: 'Meetings recorded' },
-      { key: 'attended', label: 'Meetings attended' },
+      { key: 'recorded', label: `${t.Events} recorded` },
+      { key: 'attended', label: `${t.Events} attended` },
       { key: 'apology', label: 'Apologies' },
       { key: 'absent', label: 'Absences' },
       { value: (r) => (r.rate == null ? '' : r.rate), label: 'Attendance %' },
@@ -93,13 +95,13 @@ export default function Participants() {
   return (
     <>
       <PageHeader
-        title="Participants"
-        subtitle="Board members, officers and observers."
+        title={t.Participants}
+        subtitle={`Everyone whose attendance is recorded at your ${t.events}.`}
         actions={
           <>
             <button className="btn" onClick={() => setShowImport(true)}><FileUp size={16} /> Import CSV</button>
             <button className="btn" onClick={exportCSV} disabled={!rows.length}><Download size={16} /> Export</button>
-            <Link to="/participants/new" className="btn btn-primary"><UserPlus size={16} /> Add participant</Link>
+            <Link to="/participants/new" className="btn btn-primary"><UserPlus size={16} /> Add {t.participant}</Link>
           </>
         }
       />
@@ -120,10 +122,10 @@ export default function Participants() {
           <input
             className="input"
             type="search"
-            placeholder="Search by name, email or position"
+            placeholder="Search by name, email or role"
             value={search}
             onChange={(e) => setParam('q', e.target.value)}
-            aria-label="Search participants"
+            aria-label={`Search ${t.participants}`}
           />
         </div>
         <div className="segmented" role="tablist" aria-label="Filter by status">
@@ -141,8 +143,8 @@ export default function Participants() {
       ) : (
         <div className="panel">
           {rows.length === 0 ? (
-            <EmptyState icon={Users} title={all.length ? 'No participants match your search' : 'No participants yet'}>
-              {!all.length && <Link to="/participants/new" className="link">Add the first participant</Link>}
+            <EmptyState icon={Users} title={all.length ? `No ${t.participants} match your search` : `No ${t.participants} yet`}>
+              {!all.length && <Link to="/participants/new" className="link">Add the first {t.participant}</Link>}
             </EmptyState>
           ) : (
             <div className="table-wrap">
@@ -179,16 +181,16 @@ export default function Participants() {
               </table>
             </div>
           )}
-          {rows.length > 0 && <div className="table-foot">Showing {rows.length} of {all.length} participants</div>}
+          {rows.length > 0 && <div className="table-foot">Showing {rows.length} of {all.length} {t.participants}</div>}
         </div>
       )}
 
-      {showImport && <ImportDialog onClose={() => setShowImport(false)} onDone={reload} />}
+      {showImport && <ImportDialog t={t} onClose={() => setShowImport(false)} onDone={reload} />}
     </>
   );
 }
 
-function ImportDialog({ onClose, onDone }) {
+function ImportDialog({ t, onClose, onDone }) {
   const fileRef = useRef(null);
   const [rows, setRows] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -209,6 +211,8 @@ function ImportDialog({ onClose, onDone }) {
       if (!('email' in parsed[0]) || !('first_name' in parsed[0]) || !('last_name' in parsed[0])) {
         throw new Error('The file must include "First name", "Last name" and "Email" columns. Download the template for the expected format.');
       }
+      // A "Role" column is stored as the position.
+      for (const r of parsed) if (r.role && !r.position) r.position = r.role;
       // Accept Australian-style dates (DD/MM/YYYY) as well as YYYY-MM-DD.
       for (const r of parsed) {
         for (const k of ['date_of_birth', 'date_joined']) {
@@ -229,7 +233,7 @@ function ImportDialog({ onClose, onDone }) {
       const r = await api.post('/participants/import', { rows });
       setResult(r);
       if (r.created) {
-        toast(`Imported ${r.created} participant${r.created === 1 ? '' : 's'}.`);
+        toast(`Imported ${r.created} ${r.created === 1 ? t.participant : t.participants}.`);
         onDone();
       }
     } catch (err) {
@@ -241,15 +245,15 @@ function ImportDialog({ onClose, onDone }) {
 
   function template() {
     downloadCSV('participant-import-template.csv', [
-      { first_name: 'Alex', last_name: 'Citizen', email: 'alex.citizen@example.com', phone: '0400 000 000', position: 'Non-Executive Director', date_of_birth: '1980-05-17', date_joined: todayISO(), status: 'active', notes: '' },
+      { first_name: 'Alex', last_name: 'Citizen', email: 'alex.citizen@example.com', phone: '0400 000 000', position: 'Member', date_of_birth: '1980-05-17', date_joined: todayISO(), status: 'active', notes: '' },
     ], EXPORT_COLUMNS);
   }
 
   return (
-    <Modal title="Import participants from CSV" onClose={onClose}>
+    <Modal title={`Import ${t.participants} from CSV`} onClose={onClose}>
       <div className="modal-body stack">
         <p className="muted">
-          The first row must contain column headings. Required: <strong>First name, Last name, Email, Position, Date joined</strong>.
+          The first row must contain column headings. Required: <strong>First name, Last name, Email, Role, Date joined</strong> (a column called Position also works for Role).
           Optional: Phone, Date of birth, Status (active/inactive), Notes. Dates may be YYYY-MM-DD or DD/MM/YYYY.
           Rows with an email that already exists are skipped.
         </p>
@@ -266,7 +270,7 @@ function ImportDialog({ onClose, onDone }) {
             <p className="small"><strong>{rows.length}</strong> row{rows.length === 1 ? '' : 's'} found. Preview:</p>
             <div className="table-wrap bordered">
               <table className="table table-compact">
-                <thead><tr><th>Name</th><th>Email</th><th>Position</th><th>Joined</th></tr></thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
                 <tbody>
                   {rows.slice(0, 5).map((r, i) => (
                     <tr key={i}><td>{r.first_name} {r.last_name}</td><td>{r.email}</td><td>{r.position}</td><td>{r.date_joined}</td></tr>
@@ -280,7 +284,7 @@ function ImportDialog({ onClose, onDone }) {
 
         {result && (
           <div className="stack">
-            <div className="notice notice-success">Imported {result.created} participant{result.created === 1 ? '' : 's'}. {result.skipped.length} row{result.skipped.length === 1 ? '' : 's'} skipped.</div>
+            <div className="notice notice-success">Imported {result.created} {result.created === 1 ? t.participant : t.participants}. {result.skipped.length} row{result.skipped.length === 1 ? '' : 's'} skipped.</div>
             {result.skipped.length > 0 && (
               <div className="table-wrap bordered">
                 <table className="table table-compact">
@@ -300,7 +304,7 @@ function ImportDialog({ onClose, onDone }) {
         <button type="button" className="btn" onClick={onClose}>{result ? 'Close' : 'Cancel'}</button>
         {!result && (
           <button type="button" className="btn btn-primary" disabled={!rows || busy} onClick={runImport}>
-            {busy ? 'Importing…' : `Import ${rows ? rows.length : ''} participant${rows?.length === 1 ? '' : 's'}`}
+            {busy ? 'Importing…' : `Import ${rows ? rows.length : ''} ${rows?.length === 1 ? t.participant : t.participants}`}
           </button>
         )}
       </div>

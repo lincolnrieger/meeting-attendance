@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom';
 import { CalendarPlus, CheckCircle2, ChevronRight, UserPlus } from 'lucide-react';
 import { useApi } from '../lib/useApi';
+import { useAppSettings } from '../lib/settings';
 import { formatRate } from '../lib/attendance';
 import { formatDate, formatDateLong, formatTimeRange, formatWeekday, relativeDay, todayISO } from '../lib/format';
 import { EmptyState, ErrorNotice, Loading, PageHeader, Panel, PersonCell, RateBar, StatusBreakdown } from '../components/ui';
 
 export default function Dashboard() {
   const { data, error, loading } = useApi('/dashboard');
+  const { t } = useAppSettings();
 
   return (
     <>
@@ -15,44 +17,44 @@ export default function Dashboard() {
         subtitle={formatDateLong(todayISO())}
         actions={
           <>
-            <Link to="/participants/new" className="btn"><UserPlus size={16} /> Add participant</Link>
-            <Link to="/meetings/new" className="btn btn-primary"><CalendarPlus size={16} /> New meeting</Link>
+            <Link to="/participants/new" className="btn"><UserPlus size={16} /> Add {t.participant}</Link>
+            <Link to="/meetings/new" className="btn btn-primary"><CalendarPlus size={16} /> New {t.event}</Link>
           </>
         }
       />
       <ErrorNotice error={error} />
-      {loading && !data ? <Loading /> : data && <DashboardBody d={data} />}
+      {loading && !data ? <Loading /> : data && <DashboardBody d={data} t={t} />}
     </>
   );
 }
 
-function DashboardBody({ d }) {
+function DashboardBody({ d, t }) {
   const outstandingTotal = d.outstandingMeetings.reduce((a, m) => a + m.unrecorded, 0);
   const latest = d.latest;
 
   return (
     <>
       <div className="kpis">
-        <Kpi label="Registered participants" value={d.participants.total} sub={`${d.participants.active} active`} to="/participants" />
-        <Kpi label="Meetings held" value={d.meetings.held} sub="Completed or past" to="/meetings?tab=past" />
-        <Kpi label="Upcoming meetings" value={d.meetings.upcoming} sub={d.upcoming[0] ? `Next: ${formatDate(d.upcoming[0].date, { day: 'numeric', month: 'short' })}` : 'None scheduled'} to="/meetings" />
+        <Kpi label={`Registered ${t.participants}`} value={d.participants.total} sub={`${d.participants.active} active`} to="/participants" />
+        <Kpi label={`${t.Events} held`} value={d.meetings.held} sub="Completed or past" to="/meetings?tab=past" />
+        <Kpi label={`Upcoming ${t.events}`} value={d.meetings.upcoming} sub={d.upcoming[0] ? `Next: ${formatDate(d.upcoming[0].date, { day: 'numeric', month: 'short' })}` : 'None scheduled'} to="/meetings" />
         <Kpi label="Overall attendance" value={formatRate(d.overall.rate)} sub={`${d.overall.attended} of ${d.overall.recorded} recorded`} to="/reports" />
-        <Kpi label="Latest meeting" value={latest ? formatRate(latest.summary.rate) : '—'} sub={latest ? `${latest.summary.attended} of ${latest.summary.invited} attended` : 'No meetings yet'} to={latest ? `/meetings/${latest.meeting.id}` : '/meetings'} />
-        <Kpi label="Outstanding records" value={outstandingTotal} sub={outstandingTotal ? `Across ${d.outstandingMeetings.length} meeting${d.outstandingMeetings.length === 1 ? '' : 's'}` : 'All up to date'} tone={outstandingTotal ? 'warn' : ''} />
+        <Kpi label={`Latest ${t.event}`} value={latest ? formatRate(latest.summary.rate) : '—'} sub={latest ? `${latest.summary.attended} of ${latest.summary.invited} attended` : `No ${t.events} yet`} to={latest ? `/meetings/${latest.meeting.id}` : '/meetings'} />
+        <Kpi label="Outstanding records" value={outstandingTotal} sub={outstandingTotal ? `Across ${d.outstandingMeetings.length} ${d.outstandingMeetings.length === 1 ? t.event : t.events}` : 'All up to date'} tone={outstandingTotal ? 'warn' : ''} />
       </div>
 
       <div className="grid-2">
-        <Panel title="Upcoming meetings" actions={<Link to="/meetings" className="link">All meetings <ChevronRight size={14} /></Link>} flush>
+        <Panel title={`Upcoming ${t.events}`} actions={<Link to="/meetings" className="link">All {t.events} <ChevronRight size={14} /></Link>} flush>
           {d.upcoming.length === 0 ? (
-            <EmptyState title="No upcoming meetings">
-              <Link to="/meetings/new" className="link">Schedule a meeting</Link>
+            <EmptyState title={`No upcoming ${t.events}`}>
+              <Link to="/meetings/new" className="link">Schedule a {t.event}</Link>
             </EmptyState>
           ) : (
             <table className="table">
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Meeting</th>
+                  <th>{t.Event}</th>
                   <th className="hide-sm">Location</th>
                   <th className="num">Expected</th>
                 </tr>
@@ -82,9 +84,9 @@ function DashboardBody({ d }) {
           )}
         </Panel>
 
-        <Panel title="Latest meeting attendance" actions={latest && <Link to={`/meetings/${latest.meeting.id}`} className="link">Open register <ChevronRight size={14} /></Link>}>
+        <Panel title={`Latest ${t.event} attendance`} actions={latest && <Link to={`/meetings/${latest.meeting.id}`} className="link">Open register <ChevronRight size={14} /></Link>}>
           {!latest ? (
-            <EmptyState title="No meetings have been held yet" />
+            <EmptyState title={`No ${t.events} have been held yet`} />
           ) : (
             <div className="latest">
               <div className="latest-head">
@@ -108,7 +110,7 @@ function DashboardBody({ d }) {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Member</th>
+                  <th>{t.Participant}</th>
                   <th className="num">Attended</th>
                   <th className="rate-col">Rate</th>
                 </tr>
@@ -133,14 +135,14 @@ function DashboardBody({ d }) {
         <Panel title="Outstanding attendance records" flush>
           {d.outstandingMembers.length === 0 ? (
             <EmptyState icon={CheckCircle2} title="All attendance is recorded">
-              Every invited participant has a status for each meeting held.
+              Every invited {t.participant} has a status for each {t.event} held.
             </EmptyState>
           ) : (
             <>
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Member</th>
+                    <th>{t.Participant}</th>
                     <th className="num">Missing</th>
                     <th className="hide-sm">Most recent</th>
                   </tr>

@@ -86,8 +86,8 @@ function validateParticipant(input) {
 
   if (value.phone && !PHONE_RE.test(value.phone)) errors.phone = 'Enter a valid phone number (digits, spaces, +, - and brackets only).';
 
-  if (!value.position) errors.position = 'Position / board role is required.';
-  else if (value.position.length > 120) errors.position = 'Position is too long.';
+  if (!value.position) errors.position = 'Role is required.';
+  else if (value.position.length > 120) errors.position = 'Role is too long.';
 
   if (value.date_of_birth) {
     if (!isValidDate(value.date_of_birth)) errors.date_of_birth = 'Enter a valid date.';
@@ -124,9 +124,9 @@ function validateMeeting(input) {
     status: str(input.status) || 'upcoming',
   };
 
-  if (!value.title) errors.title = 'Meeting title is required.';
+  if (!value.title) errors.title = 'Title is required.';
   else if (value.title.length > 160) errors.title = 'Title is too long.';
-  if (!value.date) errors.date = 'Meeting date is required.';
+  if (!value.date) errors.date = 'Date is required.';
   else if (!isValidDate(value.date)) errors.date = 'Enter a valid date.';
   if (!TIME_RE.test(value.start_time)) errors.start_time = 'Enter a valid start time.';
   if (!TIME_RE.test(value.end_time)) errors.end_time = 'Enter a valid finish time.';

@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { todayISO } from '../lib/format';
+import { useAppSettings } from '../lib/settings';
 import { Avatar, ErrorNotice, Field, Loading, PageHeader, Panel, SampleTag } from '../components/ui';
 import { useToast } from '../components/Feedback';
 
@@ -11,11 +12,6 @@ const EMPTY = {
   first_name: '', last_name: '', date_of_birth: '', email: '', phone: '',
   position: '', date_joined: todayISO(), status: 'active', notes: '', photo: null,
 };
-
-const POSITIONS = [
-  'Chair', 'Deputy Chair', 'Treasurer', 'Company Secretary', 'Chief Executive Officer (ex officio)',
-  'Non-Executive Director', 'Independent Director', 'Executive Director', 'Board Observer',
-];
 
 /** Client-side checks that mirror the server rules for instant feedback. */
 function validate(v) {
@@ -25,7 +21,7 @@ function validate(v) {
   if (!v.email.trim()) e.email = 'Email address is required.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) e.email = 'Enter a valid email address.';
   if (v.phone && !/^[+()\d\s-]{6,20}$/.test(v.phone.trim())) e.phone = 'Enter a valid phone number.';
-  if (!v.position.trim()) e.position = 'Position / board role is required.';
+  if (!v.position.trim()) e.position = 'Role is required.';
   if (!v.date_joined) e.date_joined = 'Date joined is required.';
   if (v.date_of_birth && v.date_of_birth >= todayISO()) e.date_of_birth = 'Date of birth must be in the past.';
   if (v.date_of_birth && v.date_joined && v.date_joined <= v.date_of_birth) e.date_joined = 'Date joined must be after date of birth.';
@@ -54,6 +50,7 @@ export default function ParticipantForm() {
   const editing = Boolean(id);
   const navigate = useNavigate();
   const toast = useToast();
+  const { settings, t } = useAppSettings();
   const fileRef = useRef(null);
   const [values, setValues] = useState(editing ? null : EMPTY);
   const [isSample, setIsSample] = useState(false);
@@ -95,7 +92,7 @@ export default function ParticipantForm() {
     setFormError(null);
     try {
       const res = editing ? await api.put(`/participants/${id}`, values) : await api.post('/participants', values);
-      toast(editing ? 'Profile updated.' : 'Participant added.');
+      toast(editing ? 'Profile updated.' : `${t.Participant} added.`);
       navigate(`/participants/${res.participant.id}`);
     } catch (err) {
       setErrors(err.errors || {});
@@ -114,8 +111,8 @@ export default function ParticipantForm() {
   return (
     <>
       <PageHeader
-        breadcrumb={<><Link to="/participants">Participants</Link>{editing && <> / <Link to={`/participants/${id}`}>{name}</Link></>}</>}
-        title={editing ? 'Edit participant' : 'Add participant'}
+        breadcrumb={<><Link to="/participants">{t.Participants}</Link>{editing && <> / <Link to={`/participants/${id}`}>{name}</Link></>}</>}
+        title={editing ? `Edit ${t.participant}` : `Add ${t.participant}`}
       />
       {editing && isSample && (
         <div className="notice notice-info">This is a <SampleTag /> profile. Replace the details with real information, or delete it once no longer needed.</div>
@@ -142,11 +139,17 @@ export default function ParticipantForm() {
           </div>
         </Panel>
 
-        <Panel title="Board membership">
+        <Panel title="Membership">
           <div className="form-grid">
-            <Field label="Position / board role" htmlFor="position" error={errors.position} required>
-              {input('position', { list: 'positions', placeholder: 'e.g. Non-Executive Director' })}
-              <datalist id="positions">{POSITIONS.map((p) => <option key={p} value={p} />)}</datalist>
+            <Field
+              label="Role"
+              htmlFor="position"
+              error={errors.position}
+              required
+              hint={<>Pick a suggestion or type your own. <Link to="/settings" className="link small">Edit suggestions</Link></>}
+            >
+              {input('position', { list: 'role-suggestions', placeholder: settings.role_suggestions[0] ? `e.g. ${settings.role_suggestions[0]}` : 'e.g. Member' })}
+              <datalist id="role-suggestions">{settings.role_suggestions.map((r) => <option key={r} value={r} />)}</datalist>
             </Field>
             <Field label="Date joined" htmlFor="date_joined" error={errors.date_joined} required>{input('date_joined', { type: 'date' })}</Field>
             <Field label="Status" htmlFor="status" error={errors.status} required>
@@ -163,7 +166,7 @@ export default function ParticipantForm() {
 
         <div className="form-actions">
           <Link to={editing ? `/participants/${id}` : '/participants'} className="btn">Cancel</Link>
-          <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Add participant'}</button>
+          <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : `Add ${t.participant}`}</button>
         </div>
       </form>
     </>

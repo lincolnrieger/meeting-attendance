@@ -1,13 +1,21 @@
-# Board Register — Board Meeting Attendance Management
+# Attendance Register
 
-A web application for keeping track of board members, organising board meetings and
-recording attendance over time. It includes a dashboard, participant profiles with
+A general-purpose attendance register for any group that meets regularly — classes, scout
+groups, sports teams, clubs, committees, volunteer shifts or workplace training. Keep a
+list of people, schedule sessions and record attendance over time.
+
+Everything adapts to your group in **Settings**: the organisation name, what people and
+sessions are called (e.g. *Students* and *Classes*, *Scouts* and *Troop Nights*), and the
+suggestions offered in forms for roles (e.g. Teacher, Scout Leader, Coach), session titles
+and locations. Ready-made templates fill these in with one click.
+
+It includes a dashboard, participant profiles with
 individual attendance histories, a fast attendance register, and date-filtered reports
 with CSV export.
 
 - **Frontend:** React 19 + React Router, built with Vite. Plain CSS (no UI framework), [Lucide](https://lucide.dev) icons, IBM Plex Sans.
 - **Backend:** a [Hono](https://hono.dev) JSON API that runs unchanged on **Cloudflare Workers** (production) and **Node.js** (local development, tests, or self-hosting).
-- **Database:** SQLite — **Cloudflare D1** in production; a local SQLite file (`data/board-attendance.db`, via `better-sqlite3`) when running on Node.
+- **Database:** SQLite — **Cloudflare D1** in production; a local SQLite file (`data/attendance.db`, via `better-sqlite3`) when running on Node.
 - **Auth:** single administrator login with server-side sessions (HttpOnly cookie) and PBKDF2-hashed passwords.
 
 ---
@@ -82,7 +90,7 @@ Optional environment variables for Node, e.g. `PORT=8080 npm start`:
 | Variable           | Default                       | Purpose |
 | ------------------ | ----------------------------- | ------- |
 | `PORT`             | `3001`                        | Port for the API / production server |
-| `DB_PATH`          | `data/board-attendance.db`    | Location of the SQLite database file |
+| `DB_PATH`          | `data/attendance.db`          | Location of the SQLite database file |
 | `ADMIN_USERNAME`   | `admin`                       | Username for the administrator account created on first launch |
 | `ADMIN_PASSWORD`   | `admin123`                    | Initial password for that account |
 | `SEED_SAMPLE_DATA` | `true`                        | Set to `false` to start with an empty database |
@@ -95,14 +103,15 @@ The admin account and sample data are only created when the database is new. On 
 
 ## Sample data
 
-On first launch the database is populated with **fictional demonstration data**:
+On first launch the database is populated with **fictional demonstration data** for a
+community group:
 
-- 19 board member profiles with Australian names (17 active, 2 inactive). All use
-  `@example.com` addresses and their notes begin with *"SAMPLE PROFILE — fictional
-  demonstration data"*.
-- Around 20 meetings: monthly board meetings for the past year, quarterly Audit & Risk
-  Committee meetings, a strategy day, one cancelled meeting, and upcoming meetings
-  including an AGM. Dates are generated relative to the day the database is created.
+- 19 people with Australian names and general roles (Coordinator, Secretary, Treasurer,
+  Member, Volunteer, Guest…), 17 active and 2 inactive. All use `@example.com` addresses and
+  their notes begin with *"SAMPLE PROFILE — fictional demonstration data"*.
+- Around 20 sessions: monthly general meetings for the past year, quarterly committee
+  meetings, a skills workshop, one cancelled meeting, and upcoming meetings including an
+  AGM. Dates are generated relative to the day the database is created.
 - Realistic attendance records, including late arrivals, online attendance, apologies,
   absences and a few deliberately unrecorded entries so the "outstanding records"
   features can be seen.
@@ -115,6 +124,15 @@ They can be reloaded from the same place.
 ---
 
 ## Features
+
+**Settings → Organisation and terminology** — organisation name (sidebar, sign-in page,
+browser tab); what people and sessions are called, used throughout the interface; and
+templates for common groups (general/community, school, scouts/youth, sports, board/committee,
+volunteers, workplace training).
+
+**Settings → Form suggestions** — editable lists (one per line) of suggested **roles**,
+**session titles** and **locations**. These appear as you type in the person and session
+forms; any other value can still be typed in.
 
 **Dashboard** — registered participants, meetings held, upcoming meetings, overall
 attendance %, latest meeting attendance, highest-attending members, and members with
@@ -172,6 +190,7 @@ server/
   schema.js           Schema migrations
   auth.js             Login/logout, sessions, password hashing, password change
   validation.js       Input validation, shared constants, time zone handling
+  app-settings.js     Organisation name, terminology and suggestion lists
   stats.js            Shared SQL for attendance statistics
   seed.js             Fictional sample data
   routes/
@@ -186,7 +205,7 @@ client/
     App.jsx           Routes and auth state
     styles.css        All styling (design tokens at the top)
     components/       Layout, charts, dialogs/toasts, shared UI pieces
-    lib/              API client, formatting, CSV helpers, attendance constants
+    lib/              API client, settings/terminology context, templates, formatting, CSV helpers
     pages/            One file per screen
 tests/
   api.test.js         API integration tests (node:test)
@@ -202,9 +221,10 @@ on D1 and on a local SQLite file. Multi-step changes use `batch`, which is atomi
 
 | Table          | Purpose |
 | -------------- | ------- |
-| `participants` | Board member profiles. `email` is unique (case-insensitive). `is_sample` marks demonstration data. |
+| `participants` | People whose attendance is recorded (the `position` column holds their role). `email` is unique (case-insensitive). `is_sample` marks demonstration data. |
 | `meetings`     | Meetings with status `upcoming` / `completed` / `cancelled`. |
 | `attendance`   | One row per invited participant per meeting. **Primary key `(meeting_id, participant_id)`** makes duplicate records impossible. `status` is `NULL` until recorded. Foreign keys cascade, so deleting a meeting or participant removes its attendance rows and records always point at a valid participant and meeting. |
+| `app_settings` | Organisation name, terminology and suggestion lists (JSON values). |
 | `users`, `sessions` | Administrator account and login sessions. |
 
 Schema changes go in the `MIGRATIONS` array in `server/schema.js` (append, never edit a
@@ -241,7 +261,7 @@ database and run `E2E_BASE_URL=http://localhost:8787 E2E_PASSWORD=<your .dev.var
 
 - **Cloudflare D1:** D1 keeps point-in-time recovery (Time Travel) for the last 30 days. To
   take a copy: `npx wrangler d1 export meeting-attendance-db --remote --output backup.sql`.
-- **Node:** all data lives in the SQLite file (`data/board-attendance.db` by default). Copy it
-  while the app is stopped, or run `sqlite3 data/board-attendance.db ".backup backup.db"`.
+- **Node:** all data lives in the SQLite file (`data/attendance.db` by default). Copy it
+  while the app is stopped, or run `sqlite3 data/attendance.db ".backup backup.db"`.
 
 If you self-host on Node for others, put it behind HTTPS and set a strong `ADMIN_PASSWORD`.

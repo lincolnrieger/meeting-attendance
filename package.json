@@ -1,7 +1,7 @@
 {
-  "name": "board-attendance-register",
+  "name": "attendance-register",
   "version": "1.0.0",
-  "description": "Board meeting attendance management system — participants, meetings, attendance register and reports.",
+  "description": "General-purpose attendance register — people, sessions, attendance recording and reports, with customisable terminology and form suggestions.",
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,green \"node --watch server/index.js\" \"vite\"",
     "build": "vite build",

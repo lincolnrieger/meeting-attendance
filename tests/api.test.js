@@ -120,7 +120,7 @@ test('validates and creates a meeting with invitees', async () => {
 
   const others = (await call('GET', '/participants?status=active')).data.participants.slice(0, 3).map((p) => p.id);
   const ok = await call('POST', '/meetings', {
-    title: 'Test Board Meeting', date: '2020-03-04', start_time: '17:30', end_time: '19:30', location: 'Boardroom',
+    title: 'Test General Meeting', date: '2020-03-04', start_time: '17:30', end_time: '19:30', location: 'Main Hall',
     description: 'Agenda', participant_ids: [participantId, participantId, ...others], // duplicate id on purpose
   });
   assert.equal(ok.status, 201);
@@ -210,7 +210,7 @@ test('data persists across a server restart', async () => {
   await startServer();
   const r = await call('GET', `/meetings/${meetingId}`);
   assert.equal(r.status, 200, 'session and meeting survive restart');
-  assert.equal(r.data.meeting.title, 'Test Board Meeting');
+  assert.equal(r.data.meeting.title, 'Test General Meeting');
   const sampleCount = (await call('GET', '/settings/sample-data')).data.participants;
   assert.ok(sampleCount > 0, 'sample data is not re-seeded or duplicated');
 });
@@ -221,6 +221,28 @@ test('removes all sample data but keeps real records', async () => {
   const left = (await call('GET', '/participants')).data.participants;
   assert.ok(left.length >= 2 && left.every((p) => !p.is_sample));
   assert.equal((await call('GET', `/meetings/${meetingId}`)).status, 200);
+});
+
+test('saves organisation settings and validates them', async () => {
+  const before = (await call('GET', '/settings/app')).data.settings;
+  assert.equal(before.event_plural, 'Meetings');
+  assert.ok(before.role_suggestions.length > 0);
+
+  const bad = await call('PUT', '/settings/app', { organisation_name: '  ', role_suggestions: 'nope' });
+  assert.equal(bad.status, 422);
+  assert.ok(bad.data.errors.organisation_name && bad.data.errors.role_suggestions);
+
+  const r = await call('PUT', '/settings/app', {
+    organisation_name: '1st Riverside Scouts',
+    participant_singular: 'Scout', participant_plural: 'Scouts',
+    event_singular: 'Troop Night', event_plural: 'Troop Nights',
+    role_suggestions: ['Scout Leader', ' Scout ', 'scout leader', '', 'Patrol Leader'],
+  });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.settings.role_suggestions, ['Scout Leader', 'Scout', 'Patrol Leader'], 'trimmed, blanks and duplicates removed');
+  assert.deepEqual(r.data.settings.location_suggestions, before.location_suggestions, 'untouched lists keep their values');
+  assert.equal((await call('GET', '/auth/setup', null, { auth: false })).data.organisation_name, '1st Riverside Scouts');
+  assert.equal((await call('PUT', '/settings/app', { event_plural: 'X' }, { auth: false })).status, 401);
 });
 
 test('changes the administrator password', async () => {

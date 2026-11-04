@@ -63,6 +63,10 @@ const MIGRATIONS = [
     'CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(date)',
     'CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)',
   ],
+  // 2 — organisation settings (name, terminology, form suggestions); values are JSON
+  [
+    'CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+  ],
 ];
 
 module.exports = { MIGRATIONS };

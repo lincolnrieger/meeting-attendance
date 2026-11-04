@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CalendarDays, CalendarPlus, ClipboardCheck, Copy, Search } from 'lucide-react';
 import { useApi } from '../lib/useApi';
+import { useAppSettings } from '../lib/settings';
 import { formatRate } from '../lib/attendance';
 import { formatDate, formatTimeRange, formatWeekday, relativeDay } from '../lib/format';
 import { EmptyState, ErrorNotice, Loading, MeetingStatusBadge, PageHeader, RateBar, SampleTag } from '../components/ui';
@@ -19,6 +20,7 @@ export default function Meetings() {
   const [search, setSearch] = useState('');
   const { data, error, loading } = useApi(`/meetings?scope=${tab}`);
   const navigate = useNavigate();
+  const { t } = useAppSettings();
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -28,22 +30,22 @@ export default function Meetings() {
   return (
     <>
       <PageHeader
-        title="Meetings"
-        subtitle="Schedule meetings, manage invitations and record attendance."
-        actions={<Link to="/meetings/new" className="btn btn-primary"><CalendarPlus size={16} /> New meeting</Link>}
+        title={t.Events}
+        subtitle={`Schedule ${t.events}, manage invitations and record attendance.`}
+        actions={<Link to="/meetings/new" className="btn btn-primary"><CalendarPlus size={16} /> New {t.event}</Link>}
       />
 
       <div className="toolbar">
         <div className="tabs" role="tablist">
-          {TABS.map((t) => (
-            <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'on' : ''} onClick={() => setParams(t.key === 'upcoming' ? {} : { tab: t.key }, { replace: true })}>
-              {t.label}
+          {TABS.map((tb) => (
+            <button key={tb.key} role="tab" aria-selected={tab === tb.key} className={tab === tb.key ? 'on' : ''} onClick={() => setParams(tb.key === 'upcoming' ? {} : { tab: tb.key }, { replace: true })}>
+              {tb.label}
             </button>
           ))}
         </div>
         <div className="search">
           <Search size={16} />
-          <input className="input" type="search" placeholder="Search title or location" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search meetings" />
+          <input className="input" type="search" placeholder="Search title or location" value={search} onChange={(e) => setSearch(e.target.value)} aria-label={`Search ${t.events}`} />
         </div>
       </div>
 
@@ -53,8 +55,8 @@ export default function Meetings() {
       ) : (
         <div className="panel">
           {rows.length === 0 ? (
-            <EmptyState icon={CalendarDays} title={search ? 'No meetings match your search' : `No ${tab === 'all' ? '' : TABS.find((t) => t.key === tab).label.toLowerCase() + ' '}meetings`}>
-              {tab === 'upcoming' && <Link to="/meetings/new" className="link">Schedule a meeting</Link>}
+            <EmptyState icon={CalendarDays} title={search ? `No ${t.events} match your search` : `No ${tab === 'all' ? '' : TABS.find((tb) => tb.key === tab).label.toLowerCase() + ' '}${t.events}`}>
+              {tab === 'upcoming' && <Link to="/meetings/new" className="link">Schedule a {t.event}</Link>}
             </EmptyState>
           ) : (
             <div className="table-wrap">
@@ -62,7 +64,7 @@ export default function Meetings() {
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Meeting</th>
+                    <th>{t.Event}</th>
                     <th className="hide-md">Time</th>
                     <th className="num hide-sm">Invited</th>
                     <th className="rate-col">Attendance</th>
@@ -100,7 +102,7 @@ export default function Meetings() {
                       <td><MeetingStatusBadge status={m.status} held={m.held} /></td>
                       <td className="actions-col">
                         <Link to={`/meetings/${m.id}`} className="icon-btn" title="Attendance register" aria-label="Attendance register"><ClipboardCheck size={15} /></Link>
-                        <Link to={`/meetings/new?duplicate=${m.id}`} className="icon-btn" title="Duplicate meeting" aria-label="Duplicate meeting"><Copy size={15} /></Link>
+                        <Link to={`/meetings/new?duplicate=${m.id}`} className="icon-btn" title={`Duplicate ${t.event}`} aria-label={`Duplicate ${t.event}`}><Copy size={15} /></Link>
                       </td>
                     </tr>
                   ))}
@@ -108,7 +110,7 @@ export default function Meetings() {
               </table>
             </div>
           )}
-          {rows.length > 0 && <div className="table-foot">{rows.length} meeting{rows.length === 1 ? '' : 's'}</div>}
+          {rows.length > 0 && <div className="table-foot">{rows.length} {rows.length === 1 ? t.event : t.events}</div>}
         </div>
       )}
     </>

@@ -7,20 +7,21 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { fullName, todayISO } from '../lib/format';
+import { useAppSettings } from '../lib/settings';
 import { Avatar, ErrorNotice, Field, Loading, PageHeader, Panel } from '../components/ui';
 import { useConfirm, useToast } from '../components/Feedback';
 
 const EMPTY = { title: '', date: '', start_time: '17:30', end_time: '19:30', location: '', description: '', status: 'upcoming' };
 
-function validate(v, invitees) {
+function validate(v, invitees, t) {
   const e = {};
-  if (!v.title.trim()) e.title = 'Meeting title is required.';
-  if (!v.date) e.date = 'Meeting date is required.';
+  if (!v.title.trim()) e.title = 'Title is required.';
+  if (!v.date) e.date = 'Date is required.';
   if (!v.start_time) e.start_time = 'Start time is required.';
   if (!v.end_time) e.end_time = 'Finish time is required.';
   else if (v.start_time && v.end_time <= v.start_time) e.end_time = 'Finish time must be after the start time.';
   if (!v.location.trim()) e.location = 'Location is required.';
-  if (invitees.size === 0) e.participant_ids = 'Select at least one participant to invite.';
+  if (invitees.size === 0) e.participant_ids = `Select at least one ${t.participant} to invite.`;
   return e;
 }
 
@@ -32,6 +33,7 @@ export default function MeetingForm() {
   const navigate = useNavigate();
   const toast = useToast();
   const confirm = useConfirm();
+  const { settings, t } = useAppSettings();
 
   const [values, setValues] = useState(null);
   const [invitees, setInvitees] = useState(new Set());
@@ -73,7 +75,7 @@ export default function MeetingForm() {
 
   async function submit(e) {
     e.preventDefault();
-    const clientErrors = validate(values, invitees);
+    const clientErrors = validate(values, invitees, t);
     setErrors(clientErrors);
     if (Object.keys(clientErrors).length) return;
 
@@ -82,7 +84,7 @@ export default function MeetingForm() {
       if (losing.length) {
         const ok = await confirm({
           title: 'Remove recorded attendance?',
-          message: `Removing ${losing.map(fullName).join(', ')} from the invitation list will also delete their recorded attendance for this meeting.`,
+          message: `Removing ${losing.map(fullName).join(', ')} from the invitation list will also delete their recorded attendance for this ${t.event}.`,
           confirmLabel: 'Remove and save',
           danger: true,
         });
@@ -95,7 +97,7 @@ export default function MeetingForm() {
     const body = { ...values, participant_ids: [...invitees] };
     try {
       const res = editing ? await api.put(`/meetings/${id}`, body) : await api.post('/meetings', body);
-      toast(editing ? 'Meeting updated.' : 'Meeting created.');
+      toast(editing ? `${t.Event} updated.` : `${t.Event} created.`);
       navigate(`/meetings/${res.meeting.id}`);
     } catch (err) {
       setErrors(err.errors || {});
@@ -110,36 +112,33 @@ export default function MeetingForm() {
     <input id={k} className="input" value={values[k] || ''} onChange={set(k)} aria-invalid={Boolean(errors[k])} {...props} />
   );
 
-  const title = editing ? 'Edit meeting' : duplicateId ? 'Duplicate meeting' : 'New meeting';
+  const title = editing ? `Edit ${t.event}` : duplicateId ? `Duplicate ${t.event}` : `New ${t.event}`;
 
   return (
     <>
       <PageHeader
-        breadcrumb={<><Link to="/meetings">Meetings</Link>{editing && <> / <Link to={`/meetings/${id}`}>{values.title}</Link></>}</>}
+        breadcrumb={<><Link to="/meetings">{t.Events}</Link>{editing && <> / <Link to={`/meetings/${id}`}>{values.title}</Link></>}</>}
         title={title}
-        subtitle={duplicateId ? 'Details and invitations have been copied. Choose a date for the new meeting.' : null}
+        subtitle={duplicateId ? `Details and invitations have been copied. Choose a date for the new ${t.event}.` : null}
       />
       <form onSubmit={submit} noValidate className="form-layout">
         <ErrorNotice error={formError && !Object.keys(errors).length ? formError : null} />
-        <Panel title="Meeting details">
+        <Panel title="Details">
           <div className="form-grid">
-            <Field label="Meeting title" htmlFor="title" error={errors.title} required className="span-2">
-              {input('title', { placeholder: 'e.g. Board Meeting — March 2027', autoFocus: !editing })}
+            <Field label="Title" htmlFor="title" error={errors.title} required className="span-2">
+              {input('title', { placeholder: `e.g. ${settings.title_suggestions[0] || t.Event}`, autoFocus: !editing, list: 'title-suggestions' })}
+              <datalist id="title-suggestions">{settings.title_suggestions.map((v) => <option key={v} value={v} />)}</datalist>
             </Field>
-            <Field label="Date" htmlFor="date" error={errors.date} required hint={!editing && values.date && values.date < todayISO() ? 'This date is in the past — the meeting will be treated as already held.' : null}>
+            <Field label="Date" htmlFor="date" error={errors.date} required hint={!editing && values.date && values.date < todayISO() ? `This date is in the past — the ${t.event} will be treated as already held.` : null}>
               {input('date', { type: 'date', autoFocus: Boolean(duplicateId) })}
             </Field>
             <div className="field-pair">
               <Field label="Start" htmlFor="start_time" error={errors.start_time} required>{input('start_time', { type: 'time', step: 300 })}</Field>
               <Field label="Finish" htmlFor="end_time" error={errors.end_time} required>{input('end_time', { type: 'time', step: 300 })}</Field>
             </div>
-            <Field label="Location or meeting room" htmlFor="location" error={errors.location} required className={editing ? '' : 'span-2'}>
-              {input('location', { placeholder: 'e.g. Boardroom, Level 4', list: 'locations' })}
-              <datalist id="locations">
-                <option value="Boardroom, Level 4, 120 Collins Street, Melbourne" />
-                <option value="Meeting Room 2, Level 4" />
-                <option value="Video conference (Microsoft Teams)" />
-              </datalist>
+            <Field label="Location" htmlFor="location" error={errors.location} required className={editing ? '' : 'span-2'}>
+              {input('location', { placeholder: `e.g. ${settings.location_suggestions[0] || 'Main Hall'}`, list: 'location-suggestions' })}
+              <datalist id="location-suggestions">{settings.location_suggestions.map((v) => <option key={v} value={v} />)}</datalist>
             </Field>
             {editing && (
               <Field label="Status" htmlFor="status" required>
@@ -151,23 +150,23 @@ export default function MeetingForm() {
               </Field>
             )}
             <Field label="Description / agenda" htmlFor="description" error={errors.description} className="span-2">
-              <textarea id="description" className="input" rows={7} value={values.description || ''} onChange={set('description')} placeholder={'1. Welcome and apologies\n2. Minutes of previous meeting\n3. …'} />
+              <textarea id="description" className="input" rows={7} value={values.description || ''} onChange={set('description')} placeholder={'1. Welcome and apologies\n2. …'} />
             </Field>
           </div>
         </Panel>
 
-        <InviteePicker people={people} selected={invitees} onChange={(s) => { setInvitees(s); setErrors((er) => ({ ...er, participant_ids: undefined })); }} error={errors.participant_ids} />
+        <InviteePicker t={t} people={people} selected={invitees} onChange={(s) => { setInvitees(s); setErrors((er) => ({ ...er, participant_ids: undefined })); }} error={errors.participant_ids} />
 
         <div className="form-actions">
           <Link to={editing ? `/meetings/${id}` : '/meetings'} className="btn">Cancel</Link>
-          <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Create meeting'}</button>
+          <button className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : `Create ${t.event}`}</button>
         </div>
       </form>
     </>
   );
 }
 
-function InviteePicker({ people, selected, onChange, error }) {
+function InviteePicker({ t, people, selected, onChange, error }) {
   const [q, setQ] = useState('');
   const [showInactive, setShowInactive] = useState(false);
 
@@ -185,7 +184,7 @@ function InviteePicker({ people, selected, onChange, error }) {
 
   return (
     <Panel
-      title={<>Invited participants <span className="count-pill">{selected.size}</span></>}
+      title={<>Invited {t.participants} <span className="count-pill">{selected.size}</span></>}
       actions={
         <>
           <button type="button" className="btn btn-sm" onClick={selectAllActive}>Select all active</button>
@@ -197,7 +196,7 @@ function InviteePicker({ people, selected, onChange, error }) {
       <div className="row gap mb">
         <div className="search grow">
           <Search size={16} />
-          <input className="input" type="search" placeholder="Filter participants" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter participants" />
+          <input className="input" type="search" placeholder={`Filter ${t.participants}`} value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Filter ${t.participants}`} />
         </div>
         <label className="check-label">
           <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show inactive
@@ -214,7 +213,7 @@ function InviteePicker({ people, selected, onChange, error }) {
             </span>
           </label>
         ))}
-        {visible.length === 0 && <p className="muted small">No participants match.</p>}
+        {visible.length === 0 && <p className="muted small">No {t.participants} match.</p>}
       </div>
     </Panel>
   );
